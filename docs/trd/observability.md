@@ -6,4 +6,4 @@ Metrics: created, sent, retries, dead-letter, lateness (`processed_at - schedule
 
 Health: Actuator liveness vs readiness (DB and broker).
 
-Config env (see `.env.example`): datasource, RabbitMQ, Redis, SMTP, `APP_JWT_SECRET`, `APP_JWT_TTL`, `APP_PUBLIC_HOST`, `APP_LOCAL_HOST`, `APP_CORS_ORIGINS`, `APP_NOTIFICATIONS_MODE`, `APP_NOTIFICATIONS_LOG_DIR`, `APP_MAIL_FROM`, `APP_REMINDER_OFFSETS`, `APP_NO_SHOW_GRACE`, `APP_ONE_CONFIRMED_PER_VEHICLE`, workers, pagination, rate limits, idempotency TTL. No secrets or durations live only in Java.
+Config env (see `.env.example`, one section per type): App, JWT, Postgres, Redis, RabbitMQ, Mail / Notification, Appointment, Reminder, Workers, Idempotency, Pagination, Rate limit. No secrets or durations live only in Java.
