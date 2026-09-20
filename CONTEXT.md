@@ -1,6 +1,6 @@
 # Dealership Appointment Booking
 
-This context is vehicle service booking and reminder delivery for dealerships and their customers. Implementation details live in `docs/trd/` and `docs/adr/`, not here. Architecture decisions live in `docs/decision/`. Testing strategy lives in `docs/testing/`. Java reuse / no-redundancy rules: [docs/trd/code-style.md](docs/trd/code-style.md) (not glossary).
+This context is vehicle service booking and reminder delivery for dealerships and their customers. Implementation details live in `docs/trd/` and `docs/adr/`, not here. Architecture decisions live in `docs/decision/`. Testing strategy lives in `docs/testing/`. Java reuse / no-redundancy rules: [docs/trd/code-style.md](docs/trd/code-style.md) (not glossary). Topic → file map: [README.md](README.md).
 
 ## Language
 

@@ -1,6 +1,6 @@
 # Technical requirements
 
-Modular TRD. Product: [../prd/README.md](../prd/README.md). Runtime: [../architecture.md](../architecture.md). Architecture decisions: [../decision/README.md](../decision/README.md).
+Modular TRD. Front door with a topic → file map: [../../README.md](../../README.md). Product: [../prd/README.md](../prd/README.md). Runtime: [../architecture.md](../architecture.md). Architecture decisions: [../decision/README.md](../decision/README.md).
 
 Discussion updates docs in the same turn. Application code lives under `src/` after an explicit implement request.
 

@@ -1,6 +1,6 @@
 # Product requirements
 
-Modular PRD. Terms: [CONTEXT.md](../../CONTEXT.md). Tech: [../trd/README.md](../trd/README.md). Architecture decisions: [../decision/README.md](../decision/README.md). Testing: [../testing/README.md](../testing/README.md).
+Modular PRD. Front door with a topic → file map: [../../README.md](../../README.md). Terms: [CONTEXT.md](../../CONTEXT.md). Tech: [../trd/README.md](../trd/README.md). Architecture decisions: [../decision/README.md](../decision/README.md). Testing: [../testing/README.md](../testing/README.md).
 
 Discussion updates docs in the same turn. Application code lives under `src/` after an explicit implement request.
 

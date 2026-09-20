@@ -7,7 +7,7 @@ Documented now. Created when implementing. Do not invent a second layout.
   AGENTS.md
   CLAUDE.md
   CONTEXT.md
-  README.md
+  README.md                          # front door: topic → prd / trd / decision
   manual-appointment.md              # curl flow: 24h + 2h Appointment
   Makefile
   scripts/test-appointment.sh        # localhost 24h + 2h Appointment

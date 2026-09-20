@@ -2,7 +2,7 @@
 
 How we prove the service works. Implementation comes later; this folder is the plan.
 
-Terms: [CONTEXT.md](../../CONTEXT.md). Product: [../prd/](../prd/). Tech: [../trd/](../trd/).
+Front door: [../../README.md](../../README.md). Terms: [CONTEXT.md](../../CONTEXT.md). Product: [../prd/README.md](../prd/README.md). Tech: [../trd/README.md](../trd/README.md).
 
 | Layer | File | What it proves |
 | --- | --- | --- |

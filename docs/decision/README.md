@@ -2,7 +2,7 @@
 
 This folder is **the architecture I chose and why**. Not coding style, not “EC2 later,” not JPA vs JDBC.
 
-Product rules: [../prd/](../prd/). Contracts: [../trd/](../trd/). Runtime picture: [../architecture.md](../architecture.md).
+Front door: [../../README.md](../../README.md). Product rules: [../prd/README.md](../prd/README.md). Contracts: [../trd/README.md](../trd/README.md). Runtime picture: [../architecture.md](../architecture.md).
 
 | Decision | File |
 | --- | --- |

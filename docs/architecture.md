@@ -4,45 +4,61 @@ Normative details: [prd/](prd/README.md), [trd/](trd/README.md), [decision/](dec
 
 ## 1. Shape
 
-One Spring Boot JVM. PostgreSQL is the ledger and the 24h/2h clock. RabbitMQ carries due Notification work after an outbox drain. Redis holds Bucket4j token buckets only. Mail is 2–4 leased workers (default 2).
+One Spring Boot JVM. PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule. The **poller** claims due Reminders and inserts Notification + outbox. The **worker** (2–4) sends. Redis is HTTP rate limit only.
 
-```text
-Client (Swagger / curl / https://dealership.greatnerve.com)
-  -> Rate limit (Bucket4j + Redis)
-  -> JWT (unless dev profile)
-  -> REST modules
-       -> PostgreSQL  (appointments, reminders, idempotency, outbox)
-              |
-              v
-       ReminderScheduler → ReminderService → ReminderRepository (SKIP LOCKED + lease)
-              |
-              v
-       Outbox publisher (SKIP LOCKED)
-              |
-              v
-       RabbitMQ (prefetch 1)
-              |
-              v
-       NotificationSender (stub | SMTP Mailhog/Brevo)
-         or FileNotificationLog when notify=false
-              |
-              v
-       Persist SENT / RETRY_SCHEDULED / DEAD_LETTER
+```mermaid
+flowchart TB
+  Client["POST /appointments"]
+
+  subgraph controller [Controller]
+    direction TB
+    A1["1. Validate + Idempotency-Key"]
+    A2["2. INSERT Appointment CONFIRMED"]
+    A3["3. INSERT Reminder rows — 24h and 2h due times"]
+    A4["4. Commit 201 — no Notification yet"]
+    A1 --> A2 --> A3 --> A4
+  end
+
+  Wait["Wait until due, still inside Send Window"]
+
+  subgraph poller [Poller]
+    direction TB
+    P1["1. Mark Reminder EXPIRED if past midpoint"]
+    P2["2. Mark Appointment NO_SHOW if past grace"]
+    P3["3. Claim one due Reminder — SKIP LOCKED"]
+    P4["4. INSERT Notification PENDING"]
+    P5["5. INSERT outbox and publish to RabbitMQ"]
+    P1 --> P2 --> P3 --> P4 --> P5
+  end
+
+  subgraph worker [Worker 2 to 4]
+    direction TB
+    W1["1. Renew lease while sending"]
+    W2["2. File log if notify false, else stub or SMTP"]
+    W3["3. Mark SENT on reminders and notifications"]
+    W1 --> W2 --> W3
+  end
+
+  Retry["RETRY_SCHEDULED on both tables — poller claims again"]
+  Dead["DEAD_LETTER on reminders and notifications — Staff replay"]
+
+  Client --> controller --> Wait --> poller --> worker
+  worker -->|transient fail| Retry --> poller
+  worker -->|permanent or max attempts| Dead
 ```
 
 ## 2. Create Appointment
 
-```text
-POST /appointments + Idempotency-Key
-  sanitize strings; Bean Validation; then role-specific body
-  begin transaction
-    insert or replay idempotency_keys
-    insert appointments (CONFIRMED, scheduled_at timestamptz, display_offset)
-    unique: one CONFIRMED per vehicle_id
-    INSERT…SELECT reminders: scheduled_at = appointment.scheduled_at - CAST(:offset AS interval)
-    (EXPIRED in SQL if that window is already past)
-  commit
-  return 201
+```mermaid
+flowchart TB
+  subgraph controller [Controller]
+    direction TB
+    A1["Validate + Idempotency-Key"]
+    A2["INSERT Appointment CONFIRMED"]
+    A3["INSERT Reminder rows — 24h and 2h due times"]
+    A4["Commit 201 — no Notification yet"]
+    A1 --> A2 --> A3 --> A4
+  end
 ```
 
 Expired `idempotency_keys` (`expires_at < now()`) are deleted at UTC midnight (`IdempotencyScheduler`). Reuse after TTL is still a new create. Notification `idempotency_key` is not this table.
@@ -56,6 +72,33 @@ Staff mail status: `GET /appointments/{id}/reminders` (home Dealership). Reminde
 ## 3. Due work
 
 In-memory timers are not the source of truth. After restart, any row with `scheduled_at <= now()` and an eligible status is work. Do not `findAll` due rows into Java.
+
+```mermaid
+flowchart TB
+  subgraph poller [Poller]
+    direction TB
+    P1["1. Mark Reminder EXPIRED if past midpoint"]
+    P2["2. Mark Appointment NO_SHOW if past grace"]
+    P3["3. Claim one due Reminder — SKIP LOCKED"]
+    P4["4. INSERT Notification and outbox, publish to RabbitMQ"]
+    P1 --> P2 --> P3 --> P4
+  end
+
+  subgraph worker [Worker 2 to 4]
+    direction TB
+    W1["1. Renew lease while sending"]
+    W2["2. File log if notify false, else stub or SMTP"]
+    W3["3. Mark SENT on reminders and notifications"]
+    W1 --> W2 --> W3
+  end
+
+  Retry["RETRY_SCHEDULED on both tables — poller claims again"]
+  Dead["DEAD_LETTER on reminders and notifications — Staff replay"]
+
+  poller --> worker
+  worker -->|transient fail| Retry --> poller
+  worker -->|permanent or max attempts| Dead
+```
 
 Expire closed send windows and no-shows with set-based `UPDATE`s (partial indexes), then claim **one** (or a small batch) that is still sendable.
 
