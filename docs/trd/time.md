@@ -41,9 +41,16 @@ Example visit `2026-09-21T04:40:00+05:30` (`notify: true`):
 | 24h | 1440 | `2026-09-19T23:10:00Z` | `2026-09-20T04:40:00+05:30` | already past → Reminder `EXPIRED`, no mail |
 | 2h | 120 | `2026-09-20T21:10:00Z` | `2026-09-21T02:40:00+05:30` | still ahead → Reminder `PENDING`; Notification around `02:40` |
 
-If the visit is **less than 2 hours** away, **both** default offsets are already past → both `EXPIRED` → no Notification. Book **more than 2 hours** out for the 2h mail, **more than 24 hours** out for the 24h mail.
+If the visit is **less than 2 hours** away, **both** default offsets are already past due; 2h is also past its midpoint (T−1h) if remaining is under 1h → both `EXPIRED` → no Notification. Book **more than 2 hours** out for a 2h row that can still become due; the 2h mail only sends in **T−2h → T−1h**. Book **more than 24 hours** out for the 24h mail, which only sends in **T−24h → T−13h**. Book at **T−3h**: 24h past midpoint (`EXPIRED`, no mail), 2h `PENDING` (one mail at T−2h, window until T−1h). Two Reminder **rows**, one send.
 
-Send window (SQL): send while `now()` is after that Reminder’s `dueAt` and before the **next** Reminder `dueAt` (or the visit time for the last offset). Miss that window → `EXPIRED`, not a retry.
+Send window (SQL): adjacent gap ÷ 2. `nextDueAt` = next Reminder `dueAt` or visit `scheduled_at`. Send while `dueAt <= now() < dueAt + (nextDueAt - dueAt) / 2`. Default:
+
+| Offset | From (inclusive) | To (exclusive) | How |
+| --- | --- | --- | --- |
+| 24h | T−24h | T−13h | (24h−2h)/2 = 11h after due |
+| 2h | T−2h | T−1h | (2h−0)/2 = 1h after due |
+
+Miss that midpoint → `EXPIRED`, not a retry of that offset. Remaining to next due **greater than** half the gap → send. Remaining **≤** half → no. Poller/worker down from T−24h to T−22h → 24h still sends. Down to T−12h → 24h no. 2h recovered at T−90m → send; at T−30m → no.
 
 ## Out (JSON)
 
@@ -86,9 +93,10 @@ SELECT gen_random_uuid(),
        a.schedule_version,
        a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
        CASE
-         WHEN a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute') <= now() THEN 'EXPIRED'
+         WHEN now() >= (due_at + next_due_at) / 2 THEN 'EXPIRED'
          ELSE 'PENDING'
        END,
+       -- due_at = a.scheduled_at - offset; next_due_at = next smaller offset due, or a.scheduled_at
        ...
 FROM appointments a
 WHERE a.id = :appointmentId;
@@ -97,8 +105,8 @@ WHERE a.id = :appointmentId;
 Due claim already uses `scheduled_at <= now()`. Send window and no-show:
 
 ```sql
--- last offset: send while now() < appointment.scheduled_at
--- earlier offset: send while now() < next reminder.scheduled_at
+-- next_due = next reminder.scheduled_at, or appointment.scheduled_at for the last offset
+-- send while now() < due_at + (next_due - due_at) / 2   -- adjacent gap ÷ 2
 -- no-show
 UPDATE appointments
 SET status = 'NO_SHOW_EXPIRED'

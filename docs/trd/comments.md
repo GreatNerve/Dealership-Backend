@@ -12,7 +12,7 @@ Useful:
 - Why a unique index is the proof, not an `if`.
 - Why contact / **Vehicle Number** must not appear in logs.
 - Why Booking Offset is stored on the Appointment (EC2 us-east must not format India mail in Eastern).
-- Why due times / no-show are SQL (do not hydrate full graphs to subtract hours).
+- Why due times / no-show / Send Window midpoint are SQL (adjacent gap ÷ 2; do not hydrate full graphs).
 - Why Idempotency Key purge cron is UTC midnight (EC2 host zone must not pick local midnight).
 - Why JSON strings use a Jackson deserializer and query/form/header strings use `@InitBinder` (two HTTP pipelines, one `Inputs`).
 - Why security 401/403 write JSON in the filter (that path never reaches `GlobalExceptionHandler`).

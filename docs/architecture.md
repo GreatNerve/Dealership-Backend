@@ -72,12 +72,14 @@ WHERE id = (
     AND r.scheduled_at <= now()
     AND (r.next_attempt_at IS NULL OR r.next_attempt_at <= now())
     AND (r.lease_expires_at IS NULL OR r.lease_expires_at < now())
-    AND now() < COALESCE(
-          (SELECT min(r2.scheduled_at) FROM reminders r2
-           WHERE r2.appointment_id = r.appointment_id
-             AND r2.schedule_version = r.schedule_version
-             AND r2.scheduled_at > r.scheduled_at),
-          a.scheduled_at)
+    AND now() < r.scheduled_at + (
+          COALESCE(
+            (SELECT min(r2.scheduled_at) FROM reminders r2
+             WHERE r2.appointment_id = r.appointment_id
+               AND r2.schedule_version = r.schedule_version
+               AND r2.scheduled_at > r.scheduled_at),
+            a.scheduled_at)
+          - r.scheduled_at) / 2
   ORDER BY r.scheduled_at
   FOR UPDATE SKIP LOCKED
   LIMIT 1

@@ -29,6 +29,10 @@ public class FileNotificationLog {
     this.file = Path.of(properties.getNotifications().getLogDir()).resolve("notifications.log");
   }
 
+  public Path file() {
+    return file;
+  }
+
   public void append(MailSnapshot snapshot) throws NotificationFailedException {
     String wall = BookingTimes.formatMail(snapshot.scheduledAt(), snapshot.displayOffset());
     String line =

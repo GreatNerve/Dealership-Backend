@@ -2,6 +2,7 @@ package com.dealership.reminder;
 
 import com.dealership.appointment.AppointmentStatus;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -15,13 +16,34 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class ReminderRepository {
   // JPA cannot claim FOR UPDATE SKIP LOCKED or expire by interval without loading graphs.
+  // next due or visit; /2 is the Send Window midpoint (adjacent gap), not the full stretch
+  private static final String NEXT_DUE =
+      """
+      COALESCE(
+        (SELECT min(r2.scheduled_at) FROM reminders r2
+         WHERE r2.appointment_id = r.appointment_id
+           AND r2.schedule_version = r.schedule_version
+           AND r2.scheduled_at > r.scheduled_at),
+        a.scheduled_at)
+      """;
+  private static final String BEFORE_MIDPOINT =
+      "now() < r.scheduled_at + ((" + NEXT_DUE.trim() + ") - r.scheduled_at) / 2";
+  private static final String PAST_MIDPOINT =
+      "now() >= r.scheduled_at + ((" + NEXT_DUE.trim() + ") - r.scheduled_at) / 2";
+
+  // text blocks strip the space after AND, which glued into ANDnow
+  private static String and(String predicate) {
+    return " AND (" + predicate.trim() + ")";
+  }
+
   private final NamedParameterJdbcTemplate jdbc;
 
   public ReminderRepository(NamedParameterJdbcTemplate jdbc) {
     this.jdbc = jdbc;
   }
 
-  public void insertForAppointment(UUID appointmentId, int offsetMinutes) {
+  public void insertForAppointment(
+      UUID appointmentId, int offsetMinutes, Integer nextOffsetMinutes) {
     jdbc.update(
         """
         INSERT INTO reminders (
@@ -33,7 +55,16 @@ public class ReminderRepository {
                a.schedule_version,
                a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
                CASE
-                 WHEN a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute') <= now()
+                 WHEN now() >=
+                   (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
+                   + (
+                     (CASE
+                        WHEN CAST(:nextOffsetMinutes AS int) IS NULL THEN a.scheduled_at
+                        ELSE a.scheduled_at
+                          - (CAST(:nextOffsetMinutes AS int) * interval '1 minute')
+                      END)
+                     - (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
+                   ) / 2
                    THEN CAST(:expired AS reminder_status)
                  ELSE CAST(:pending AS reminder_status)
                END,
@@ -46,6 +77,7 @@ public class ReminderRepository {
         new MapSqlParameterSource()
             .addValue("appointmentId", appointmentId)
             .addValue("offsetMinutes", offsetMinutes)
+            .addValue("nextOffsetMinutes", nextOffsetMinutes, Types.INTEGER)
             .addValue("expired", ReminderStatus.EXPIRED.name())
             .addValue("pending", ReminderStatus.PENDING.name()));
   }
@@ -76,14 +108,11 @@ public class ReminderRepository {
             SELECT 1 FROM appointments a
             WHERE a.id = r.appointment_id
               AND a.status = CAST(:confirmed AS appointment_status)
-              AND now() >= COALESCE(
-                (SELECT min(r2.scheduled_at) FROM reminders r2
-                 WHERE r2.appointment_id = r.appointment_id
-                   AND r2.schedule_version = r.schedule_version
-                   AND r2.scheduled_at > r.scheduled_at),
-                a.scheduled_at)
-          )
-        """,
+        """
+            + and(PAST_MIDPOINT)
+            + """
+              )
+            """,
         new MapSqlParameterSource()
             .addValue("expired", ReminderStatus.EXPIRED.name())
             .addValue("pending", ReminderStatus.PENDING.name())
@@ -146,18 +175,15 @@ public class ReminderRepository {
                 AND r.scheduled_at <= now()
                 AND (r.next_attempt_at IS NULL OR r.next_attempt_at <= now())
                 AND (r.lease_expires_at IS NULL OR r.lease_expires_at < now())
-                AND now() < COALESCE(
-                      (SELECT min(r2.scheduled_at) FROM reminders r2
-                       WHERE r2.appointment_id = r.appointment_id
-                         AND r2.schedule_version = r.schedule_version
-                         AND r2.scheduled_at > r.scheduled_at),
-                      a.scheduled_at)
+            """
+                + and(BEFORE_MIDPOINT)
+                + """
               ORDER BY r.scheduled_at
-              FOR UPDATE OF r SKIP LOCKED
-              LIMIT 1
-            )
-            RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, attempts
-            """,
+  FOR UPDATE OF r SKIP LOCKED
+  LIMIT 1
+)
+RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, attempts
+""",
             new MapSqlParameterSource()
                 .addValue("worker", workerId)
                 .addValue("lease", toPgInterval(lease))

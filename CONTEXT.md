@@ -80,6 +80,10 @@ _Avoid_: Alert, notification (Notification is the delivery record)
 One configured duration before `scheduledAt` (default `24h` and `2h`). Expand the list in config (`7d`, `6h`, `30m`, …). Stored as `offset_minutes`. Not confirmation in v1.
 _Avoid_: Reminder Type, a closed enum of offsets, kind, channel
 
+**Send Window**:
+How long a due **Reminder** may still send. Adjacent offset gap ÷ 2 (next due, or visit start for the last offset). First half: send. Past the midpoint: `EXPIRED`, no mail for that offset. Not a 1-hour buffer around 24h. Not the full stretch to the next offset.
+_Avoid_: buffer hour, grace hour (no-show grace is separate)
+
 **Notification**:
 The delivery attempt record for one **Reminder** (stub log or Brevo SMTP).
 _Avoid_: Message, email (email is a channel), reminder (Reminder is the schedule)

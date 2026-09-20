@@ -12,7 +12,7 @@ Do **not** load Appointments/Reminders into Java to subtract hours, expire windo
 
 `ReminderScheduler` (`@Scheduled`) calls `ReminderService.pollDue`. Claim SQL lives on `ReminderRepository` (`JdbcTemplate`, not JPA): `FOR UPDATE SKIP LOCKED`, lease **30s** (configurable) in the **same claim transaction**. Send-window and Confirmed checks live in that `WHERE` so ineligible rows never enter the JVM. Heartbeat renews the lease during SMTP. SMTP timeout < lease. I/O outside the claim transaction. After claim, write `outbox_events` with a **snapshot payload** from the same JOIN (so the consumer does not reload Appointment + Customer + Vehicle). Not at Appointment create, not for far-future Reminders.
 
-Send window (SQL): `reminder.scheduled_at <= now()` and Confirmed and `now()` before the next Reminder’s `scheduled_at` (or `appointment.scheduled_at` for the last offset). Example: 24h recovered at T-20h → send. At T-1h → set-based `EXPIRED`, not loaded. Cancel/reschedule → SQL status, workers must not send.
+Send window (SQL): `dueAt <= now() < dueAt + (nextDueAt − dueAt)/2` with `nextDueAt` = next Reminder `scheduled_at` or visit `scheduled_at`. Default: 24h is **T−24h → T−13h**; 2h is **T−2h → T−1h**. Remaining to next due greater than half the gap → send. At or past midpoint → set-based `EXPIRED`. Example: 24h recovered at T-20h → send. At T-12h → `EXPIRED`. 2h at T-90m → send; at T-30m → no. Cancel/reschedule → SQL status, workers must not send.
 
 No-show (SQL): one `UPDATE` — Confirmed and `now() >= scheduled_at + interval '1 hour'` → `NO_SHOW_EXPIRED`; pending Reminders `EXPIRED`/`CANCELLED`. No `findAll` Confirmed rows.
 

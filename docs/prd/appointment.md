@@ -21,7 +21,7 @@
 | Customer create body | `{ vehicleId, dealershipId, scheduledAt, notify? }` |
 | Staff create body | `{ customerId, vehicleId, scheduledAt, notify? }`. Dealership from token. |
 | Past `scheduledAt` | Reject create. |
-| Late vs Reminder windows | Window already past → Reminder skipped/`EXPIRED` with reason. Future windows still created. |
+| Late vs Reminder windows | Past the **Send Window** midpoint (adjacent gap ÷ 2) → that offset `EXPIRED`, no mail. Future offsets still created. See [reminder.md](reminder.md). |
 | Cancel / reschedule | Only from Confirmed. |
 | Already sent | Cannot unsend. History stays. |
 | Time | ISO-8601 with offset in (`scheduledAt`). Store UTC Instant **and** **Booking Offset**. No Customer timezone field. Mail / Customer GET: that offset (`10:00 PM UTC+05:30`). Staff GET: **Dealership Timezone**. JVM UTC so EC2 region does not matter. See [../trd/time.md](../trd/time.md). |

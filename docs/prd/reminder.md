@@ -14,7 +14,16 @@
 - Unique on `(appointment, offset_minutes, schedule version)`.
 - `notify: false` creates the rows; when due, workers append `logs/notifications.log` and store Notification `SENT` (no email). `notify: true` uses Notification Mode (stub or SMTP).
 - Notification/outbox is created **only when due** (`scheduled_at <= now`). No Notification rows for days-ahead Reminders.
-- Send window: a due Reminder may still send until the **next** offset (24h Reminder until 2h before; last offset until visit start), while Confirmed. Example: missed 24h, recovered at 20h before → send. Recovered at 1h before → 24h EXPIRED, 2h still sendable.
+- Send window: adjacent gap ÷ 2. `nextDueAt` is the next smaller offset’s due time, or visit `scheduledAt` for the last offset. Gap = `nextDueAt − dueAt`. Midpoint = `dueAt + gap/2`. Send while `dueAt <= now() < midpoint`. Remaining time to next due **greater than** half the gap → send. Remaining **less than** (or equal) half → `EXPIRED`, no mail for that offset. Not a 1-hour buffer. Not the full stretch to the next offset.
+
+  Visit at **T**. Default `24h,2h`: gap 24h−2h = **22h**, half = **11h**. Last offset vs visit: gap 2h−0 = **2h**, half = **1h**.
+
+  | Reminder | Due | Gap to next | Midpoint | Notification may send | After that |
+  | --- | --- | --- | --- | --- | --- |
+  | 24h | T−24h | 22h (to 2h) | **T−13h** | **T−24h → T−13h** | `EXPIRED`, no 24h mail |
+  | 2h | T−2h | 2h (to visit) | **T−1h** | **T−2h → T−1h** | `EXPIRED`, no 2h mail |
+
+  Recover at T−22h or T−20h (still before T−13h) → **send 24h**. Recover at T−12h → 24h **no**. Recover 2h at T−90m → **send**. Recover 2h at T−30m → **no**. Book at T−3h: 24h already past midpoint → `EXPIRED`; 2h still `PENDING` until T−1h.
 - Cancelled or rescheduled: unsent old Reminders cancelled (new schedule version). Workers re-check before send.
 - Immediate confirmation mail is **not** v1.
 - Due math is PostgreSQL `timestamptz` ± `interval`, set-based (no load-all in Java). Mail uses **Booking Offset**. Outbox carries a lean snapshot so the worker does not reload the full graph.

@@ -1,15 +1,20 @@
 package com.dealership.appointment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dealership.AbstractIT;
 import com.dealership.identity.AuthDtos;
 import com.dealership.identity.Role;
+import com.dealership.notification.FileNotificationLog;
+import com.dealership.notification.OutboxPublisher;
 import com.dealership.notification.smtp.StubNotificationSender;
 import com.dealership.reminder.ReminderScheduler;
 import jakarta.persistence.EntityManagerFactory;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -34,6 +39,10 @@ class AppointmentFlowTest extends AbstractIT {
 
   @Autowired ReminderScheduler poller;
 
+  @Autowired OutboxPublisher publisher;
+
+  @Autowired FileNotificationLog notifyOffLog;
+
   @Autowired IdempotencyService idempotency;
 
   @Autowired EntityManagerFactory entityManagerFactory;
@@ -41,6 +50,7 @@ class AppointmentFlowTest extends AbstractIT {
   @BeforeEach
   void clearStub() {
     stub.clear();
+    notifyOffLog.clear();
   }
 
   @Test
@@ -181,6 +191,162 @@ class AppointmentFlowTest extends AbstractIT {
             Integer.class,
             id);
     assertEquals(1, intervalMatch);
+  }
+
+  @Test
+  void twentyHoursOutKeepsTwentyFourHourPending() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusHours(20)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID id =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":false}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    assertEquals(
+        "PENDING",
+        jdbc.queryForObject(
+            "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 1440",
+            String.class,
+            id));
+    assertEquals(
+        "PENDING",
+        jdbc.queryForObject(
+            "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 120",
+            String.class,
+            id));
+  }
+
+  @Test
+  void notifyOffLogOnlyWhenInsideMidpointWindow() throws Exception {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID insideId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":false}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    jdbc.update(
+        """
+        UPDATE reminders SET scheduled_at = now() - interval '1 minute'
+        WHERE appointment_id = ? AND offset_minutes = 1440
+        """,
+        insideId);
+    assertTrue(waitForNotifyOff(insideId, 1));
+    assertEquals(
+        1,
+        notifyOffLog.recorded().stream().filter(s -> s.appointmentId().equals(insideId)).count());
+    String log = Files.readString(notifyOffLog.file(), StandardCharsets.UTF_8);
+    assertTrue(log.contains("appointment_id=" + insideId));
+    assertTrue(log.contains("notify=false"));
+    assertEquals(
+        1440,
+        notifyOffLog.recorded().stream()
+            .filter(s -> s.appointmentId().equals(insideId))
+            .findFirst()
+            .orElseThrow()
+            .offsetMinutes());
+
+    UUID vehicle2 = createVehicle(customerToken, randomPlate("MH"));
+    HttpHeaders lateKey = bearer(customerToken);
+    lateKey.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID pastId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":false}
+                    """
+                        .formatted(vehicle2, dealershipId, when.plusDays(1)),
+                    lateKey),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    jdbc.update(
+        """
+        UPDATE reminders SET scheduled_at = now() - interval '12 hours'
+        WHERE appointment_id = ? AND offset_minutes = 1440
+        """,
+        pastId);
+    jdbc.update(
+        """
+        UPDATE reminders SET scheduled_at = now() + interval '10 hours'
+        WHERE appointment_id = ? AND offset_minutes = 120
+        """,
+        pastId);
+    notifyOffLog.clear();
+    poller.tick();
+    publisher.drain();
+    Thread.sleep(500);
+    poller.tick();
+    publisher.drain();
+    Thread.sleep(300);
+    assertEquals(
+        0, notifyOffLog.recorded().stream().filter(s -> s.appointmentId().equals(pastId)).count());
+    assertEquals(
+        "EXPIRED",
+        jdbc.queryForObject(
+            "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 1440",
+            String.class,
+            pastId));
+    String after = Files.readString(notifyOffLog.file(), StandardCharsets.UTF_8);
+    assertFalse(after.contains("appointment_id=" + pastId));
+  }
+
+  private boolean waitForNotifyOff(UUID appointmentId, int min) {
+    long deadline = System.currentTimeMillis() + 8000;
+    while (System.currentTimeMillis() < deadline) {
+      poller.tick();
+      publisher.drain();
+      long count =
+          notifyOffLog.recorded().stream()
+              .filter(s -> s.appointmentId().equals(appointmentId))
+              .count();
+      if (count >= min) {
+        return true;
+      }
+      try {
+        Thread.sleep(50);
+      } catch (InterruptedException ex) {
+        Thread.currentThread().interrupt();
+        return false;
+      }
+    }
+    return false;
   }
 
   @Test

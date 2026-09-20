@@ -2,6 +2,9 @@ package com.dealership.reminder;
 
 import com.dealership.notification.NotificationService;
 import com.dealership.shared.config.AppProperties;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,8 +29,11 @@ public class ReminderService {
   }
 
   public void insertForAppointment(UUID appointmentId) {
-    for (int minutes : properties.getReminders().offsetMinutes()) {
-      reminders.insertForAppointment(appointmentId, minutes);
+    List<Integer> offsets = new ArrayList<>(properties.getReminders().offsetMinutes());
+    offsets.sort(Comparator.reverseOrder());
+    for (int i = 0; i < offsets.size(); i++) {
+      Integer next = i + 1 < offsets.size() ? offsets.get(i + 1) : null;
+      reminders.insertForAppointment(appointmentId, offsets.get(i), next);
     }
   }
 
