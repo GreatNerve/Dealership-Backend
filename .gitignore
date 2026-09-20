@@ -1,0 +1,21 @@
+# Bytecode
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Env and local
+.env
+*.env.local
+
+# Untracked local notes and assignment dumps
+no-push/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

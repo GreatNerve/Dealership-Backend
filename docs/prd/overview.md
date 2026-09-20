@@ -1,0 +1,22 @@
+# Overview
+
+Dealerships and Customers need to book vehicle service visits and remind the Customer 24 hours and 2 hours before the visit. Retried HTTP calls, worker crashes, and duplicate sends must not produce two of the same Reminder.
+
+The assignment needs a working service, tests, a design write-up, and a demo under five minutes. The product around that spine is a multi-actor booking API (Customer self-book and Staff book-on-behalf), not a shop-floor workshop system.
+
+## Solution
+
+One Spring Boot service:
+
+- Customers register Vehicles and book Appointments at a Dealership.
+- Staff Members book Appointments for a Customer at their **home Dealership only**.
+- Creating an Appointment transactionally creates Reminder rows for each configured offset (default 24h and 2h) unless that window is already past.
+- A durable scheduler finds due Reminders after downtime. Delivery is stub (default) or Brevo SMTP (flag).
+- A Customer never receives the same Reminder twice, proven by database uniqueness and concurrency tests.
+
+## Goals
+
+1. Honour the assignment: `POST /appointments`, configured Reminder offsets (default 24h and 2h), stub sender, provable no duplicate Reminder, tests, README/diagram later, demo video.
+2. Make failure modes explicit: retries, leases, dead-letter, replay, no-show expiry.
+3. Signal production thinking (JWT, RabbitMQ outbox, Redis rate limits, Swagger, Docker) without microservices.
+4. Stay defendable line-by-line in review.

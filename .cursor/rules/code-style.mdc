@@ -1,0 +1,14 @@
+---
+description: Reuse, no duplication, SQL clock, lean diffs. No code until asked.
+alwaysApply: true
+---
+
+# Code style
+
+When writing Java (only after the user **explicitly** asks to implement):
+
+- Reuse first. One pagination binder, one 404 access check, one time parse/format, one Reminder `INSERT … SELECT` for create and reschedule, one `NotificationSender`, one error body.
+- No copy-paste. No second clock in Java. No full-graph load for mail.
+- Smallest diff. Refactor only what you touch. Delete new dead code.
+- Shared cross-cutting in `com.dealership.shared`. Native SQL stays with the owning module.
+- Passwords BCrypt. Email lowercase unique. VIN uppercase unique. Details: `docs/trd/code-style.md`.

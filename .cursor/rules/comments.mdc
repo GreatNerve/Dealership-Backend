@@ -1,0 +1,12 @@
+---
+description: Java comments — only non-obvious why, never noise.
+alwaysApply: true
+---
+
+# Comments
+
+When writing or editing Java (only after the user asks to implement):
+
+- Comment **only** a non-obvious why (SKIP LOCKED, lease vs SMTP timeout, no outbox at create, unique index as proof, no PII in logs, Booking Offset stored so EC2 host zone is unused, clock math in SQL so we do not load full graphs).
+- Do **not** comment what the code already says. No banners, no “added this”, no Javadoc on every record.
+- Prefer a clear name over a comment.

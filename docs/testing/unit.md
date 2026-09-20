@@ -1,0 +1,50 @@
+# Unit tests
+
+No Spring context. No containers. Public functions and policies only.
+
+## Reminder time
+
+- Offsets come from config; default 24h and 2h (strings bound as SQL `interval` — do not reimplement subtraction in unit tests).
+- Offset input (`+05:30`) normalises to the same Instant for HTTP parse.
+- Format Instant + stored `display_offset` `+05:30` → Local Wall Time `22:00 UTC+05:30`, not `16:30Z` as the mail string.
+- Same Instant + Dealership Timezone for staff display helper (shop zone).
+- Formatter never uses `ZoneId.systemDefault()` (EC2 us-east must not leak).
+
+## Skip / expire / send windows
+
+Ledger behaviour is **integration SQL** (INSERT CASE EXPIRED, send-window `UPDATE`, claim `WHERE`). Unit tests must not fake `Instant.minus(24, HOURS)` as the source of truth.
+
+- `scheduledAt` already past → create rejected (policy lives here; HTTP mapping is e2e).
+- Cancelled or old schedule version → must not send (policy; SQL is integration).
+
+## One Confirmed per Vehicle
+
+- Policy function: a second Confirmed for the same Vehicle is a conflict. (The unique index is integration.)
+- Two Vehicles, two Confirmed → allowed.
+
+## Idempotency fingerprint
+
+- Same key + same body → replay.
+- Same key + different body → reuse error.
+- Missing key → invalid.
+
+## Retry / backoff
+
+- Transient vs permanent classification (timeout, 5xx, 429 vs bad address, 401).
+- Exponential backoff with jitter stays inside min/max.
+- Attempt 5 → dead-letter, no next attempt.
+
+## No-show
+
+- Policy: Confirmed and `now >= scheduledAt + 1 hour` → No-Show Expired. The job itself is SQL (integration).
+
+## Rate-limit config (no Redis)
+
+- Customer vs staff capacities as numbers.
+- Token-bucket refill math if we keep a pure helper; live Redis behaviour is the `test-ratelimit` slice.
+
+## What unit tests must not do
+
+- Start Tomcat.
+- Query JPA.
+- Assert on private methods or SQL strings.

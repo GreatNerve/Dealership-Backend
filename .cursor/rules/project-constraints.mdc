@@ -1,0 +1,23 @@
+---
+description: Project constraints from PRD/TRD. Always apply.
+alwaysApply: true
+---
+
+# Dealership booking constraints
+
+- Source of truth: `CONTEXT.md`, `docs/prd/`, `docs/trd/`, `docs/decision/`, `docs/testing/`, `docs/architecture.md`, `docs/adr/`.
+- Do not write application code (`pom.xml`, `src/`, Docker images) unless the user **explicitly** asked to implement. Discussion → docs only.
+- Use glossary terms. Appointment not booking. Reminder vs Notification are different.
+- No Lombok. Record DTOs. Explicit JPA entities. UUID primary keys.
+- Comments in Java: only non-obvious why. See `docs/trd/comments.md`.
+- Reuse, no redundancy, lean diffs: `docs/trd/code-style.md`. One page/access/time/Reminder-SQL/sender.
+- API docs: springdoc-openapi (Swagger UI), see `docs/trd/openapi.md`. Not springfox.
+- JPA for CRUD. Native SQL / JdbcTemplate for SKIP LOCKED, due-time insert, send-window expire, no-show UPDATE, outbox snapshot. Do not hydrate full graphs to do clock math.
+- Redis = Bucket4j token bucket HTTP limits only. Postgres = ledger (Reminders, one Confirmed per Vehicle).
+- Staff create Appointments at home Dealership only.
+- List GETs paginated **and searchable** (`page`, `size`, `q`). Reads: own or home Dealership, else 404.
+- Reminder offsets from config. No confirmation mail. Workers 2–4, lease heartbeat.
+- Shop-floor In Progress/Completed is later. Do not invent it.
+- Never log raw contact or full VIN. Default Notification Mode is stub.
+- Duplicate Reminder prevention must be a unique constraint plus a test, not an application `if`.
+- Store Appointment `scheduled_at` as UTC **and** `display_offset` from `scheduledAt`. No Customer timezone in the payload. Mail/Customer GET use Booking Offset. Staff GET uses Dealership Timezone. JVM UTC so EC2 host zone never leaks. Never print UTC as the only time in mail. Clock math is set-based SQL.

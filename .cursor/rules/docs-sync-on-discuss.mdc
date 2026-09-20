@@ -1,0 +1,21 @@
+---
+description: Keep every docs folder in sync when we discuss or lock a decision.
+alwaysApply: true
+---
+
+# Update all docs when we discuss
+
+When the user locks or changes product, architecture, APIs, or tests in chat, **edit the docs in the same turn**. Do not leave the answer only in conversation.
+
+Touch every folder that the change hits:
+
+- `docs/prd/<module>.md` — behaviour, stories, policies
+- `docs/trd/<module>.md` — contracts, schema, config
+- `docs/decision/` — only if it is an architecture choice (new file or edit)
+- `docs/testing/` — unit / integration / e2e if behaviour is testable
+- `docs/architecture.md` — if the runtime flow changed
+- `docs/adr/` — if a hard-to-reverse trade-off changed
+- `CONTEXT.md` — if a glossary term changed
+- `AGENTS.md` — if a standing constraint changed
+
+Do not write application code (`pom.xml`, `src/`, Dockerfiles) while discussing. Docs only until the user explicitly asks to implement.
