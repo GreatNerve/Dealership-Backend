@@ -44,10 +44,11 @@ No Spring context. No containers. Public functions and policies only.
 
 - Policy: Confirmed and `now >= scheduledAt + 1 hour` → No-Show Expired. The job itself is SQL (integration).
 
-## Rate-limit config (no Redis)
+## Rate-limit keys (no Redis)
 
-- Customer vs staff capacities as numbers.
-- Token-bucket refill math if we keep a pure helper; live Redis behaviour is the `test-ratelimit` slice.
+- Customer vs staff capacities as numbers (default **15 / 60s** each; period never longer than 60s).
+- `POST /auth/login` and `POST /auth/register` are different keys. `GET` vs `POST /appointments` are different keys. Two Appointment ids share `GET /appointments/{id}`.
+- Live Redis behaviour is the `test-ratelimit` slice.
 
 ## What unit tests must not do
 

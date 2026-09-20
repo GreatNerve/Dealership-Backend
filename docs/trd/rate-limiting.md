@@ -2,19 +2,22 @@
 
 Spring Boot has no first-party limiter. Use **Bucket4j token bucket + Redis (Lettuce)**.
 
-Keys: `userId` when JWT present; IP for login/register. Coarse IP bucket on all routes.
+One bucket per **HTTP endpoint** (method + path). UUID path segments collapse to `{id}` so `GET /appointments/{id}` is one endpoint, not one bucket per Appointment. Login and register do **not** share a bucket. Listing Appointments does **not** spend create-Appointment tokens. There is **no** overlay that counts every route together.
+
+Budgets stay small so a reviewer is never locked out for minutes: **15 requests / 60 seconds** per endpoint. Period is never longer than 60s. `Retry-After` ≤ 60s.
+
+| Route | Identity | Budget |
+| --- | --- | --- |
+| `POST /auth/login` | IP | 15 / 60s |
+| `POST /auth/register` | IP | 15 / 60s (own bucket) |
+| Other unauthenticated | IP | 15 / 60s, that endpoint only |
+| Authenticated `CUSTOMER` | `userId` | 15 / 60s, that endpoint only |
+| Authenticated `STAFF` | `userId` | 15 / 60s, that endpoint only |
+
+Redis key shape: `{ip\|user}:{id}:{METHOD}:{path}`.
 
 Headers on limited responses: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`. On 429 also `Retry-After`. Body `RATE_LIMITED`.
 
-Starting budgets (configurable):
-
-| Key | Bucket |
-| --- | --- |
-| Login / register (IP) | 5 / 15 minutes |
-| Authenticated CUSTOMER | 60 / minute |
-| Authenticated STAFF | 300 / minute |
-| Coarse IP | 600 / minute |
-
-Refill greedy so slots return as time passes. `bucket4j.enabled=false` in `test`.
+Refill greedy so slots return as time passes. `app.rate-limit.enabled=false` in `test`.
 
 Redis is not the uniqueness store and not a mail throttle.

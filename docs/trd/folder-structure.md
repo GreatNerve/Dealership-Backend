@@ -7,8 +7,10 @@ Documented now. Created when implementing. Do not invent a second layout.
   AGENTS.md
   CLAUDE.md
   CONTEXT.md
-  README.md                          # later, summarized from docs
+  README.md
+  manual-appointment.md              # curl flow: 24h + 2h Appointment
   Makefile
+  scripts/test-appointment.sh        # localhost 24h + 2h Appointment
   .githooks/pre-commit               # format + test; install with make hooks
   .gitignore
   .vscode/settings.json              # format on save (Google Java Format)

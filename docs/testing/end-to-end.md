@@ -61,7 +61,8 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 
 ## Rate-limit slice (`test-ratelimit`)
 
-- Login burst → 429, `Retry-After`, `X-RateLimit-*`.
+- Login burst past 15 / 60s → 429, `Retry-After` ≤ 60s, `X-RateLimit-*`.
+- Register still succeeds after that burst (login and register are separate buckets).
 - Default `./mvnw test` does not enable this (flaky otherwise).
 
 ## Loading / error HTTP

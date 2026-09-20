@@ -53,4 +53,16 @@ docker compose up -d --build
 
 Demo login (`dev` profile): `staff@demo.local` / `password` and `customer@demo.local` / `password`.
 
+## Try an Appointment (24h and 2h Reminders)
+
+App on 8080, then:
+
+```bash
+bash scripts/test-appointment.sh        # both
+bash scripts/test-appointment.sh 24h
+bash scripts/test-appointment.sh 2h
+```
+
+Curl-only steps: [manual-appointment.md](manual-appointment.md). `notify: false` writes `logs/notifications.log`. Book ~20h out to fire the 24h Reminder now; ~100 minutes out to fire the 2h Reminder. Rate limit is **15 / 60s per endpoint** (never a 15-minute wait).
+
 Default Notification Mode is **stub**. Set `APP_NOTIFICATIONS_MODE=smtp` to send through Mailhog.

@@ -113,7 +113,7 @@ Shop-floor In Progress/Completed is later. v1 reads: own or home Dealership, els
 
 ## 6. Rate limiting
 
-Token bucket in Redis, keyed by `userId` when JWT is present, by IP on login/register. Staff capacity higher than Customer. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
+Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
 
 ## 7. What scales at 75k/day
 

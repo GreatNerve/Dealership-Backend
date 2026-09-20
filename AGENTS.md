@@ -19,7 +19,7 @@ Ignore [no-push/](no-push/) except the assignment PDF.
 - No Kafka, no Keycloak, no Spring Cloud Gateway, no Lombok.
 - Reminder offsets from config (`APP_REMINDER_OFFSETS`, default `24h,2h`). Not a Java enum of types. No confirmation mail in v1.
 - Mail workers 2–4 (default 2), 30s lease with heartbeat, SMTP timeout < lease.
-- Redis is Bucket4j HTTP limits only, never uniqueness or mail throttle.
+- Redis is Bucket4j HTTP limits only, never uniqueness or mail throttle. Limits are **per endpoint** (method + path, UUID collapsed to `{id}`), **15 / 60s**, never a window longer than 60s. Login and register do not share tokens.
 - Reminder uniqueness and one Confirmed Appointment per Vehicle are **PostgreSQL**. The Vehicle cap is `APP_ONE_CONFIRMED_PER_VEHICLE` (default `true`). `false` stores `one_confirmed=false` so the unique index does not apply.
 - Staff book **home Dealership only**.
 - List GETs are paginated and searchable (`q`). Default page `size` is **100**, max **1000** (`APP_PAGE_DEFAULT_SIZE` / `APP_PAGE_MAX_SIZE`). Nested refs on a page are one `findAllById` (or `findByCustomerIdIn`) per table, not `findById` per row. Customer/Staff Appointment reads: own or home shop, else 404. Staff search `GET /customers` (and that Customer’s Vehicles) to obtain ids for booking. Staff may `POST /customers` and `POST /customers/{id}/vehicles` for walk-ins, then book home Dealership only.
@@ -53,6 +53,7 @@ make deps           # docker compose -f docker-compose.deps.yml up -d
 make fmt            # ./mvnw spotless:apply
 make test           # format then ./mvnw test
 make run            # deps + ./mvnw spring-boot:run
+make appointment    # localhost 24h + 2h Appointment (scripts/test-appointment.sh)
 make stop           # kill whatever is on PORT (default 8080)
 make up             # docker compose up -d --build
 ```

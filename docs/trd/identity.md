@@ -12,6 +12,6 @@ Errors: `400` validation (`VALIDATION_ERROR` for Bean Validation; same shape as 
 
 JSON and form strings are sanitized (`Inputs`) before validation. Email is stored lowercase.
 
-Login/register keyed by IP in Bucket4j. See [rate-limiting.md](rate-limiting.md).
+Login and register each have their own IP Bucket4j bucket (**15 / 60s**). They do not share tokens. See [rate-limiting.md](rate-limiting.md).
 
 Table `users`: email unique **lowercase**, password hash (BCrypt), `user_role` enum. No timezone on User or Customer.

@@ -1,4 +1,4 @@
-.PHONY: help hooks fmt check test run stop deps up down precommit
+.PHONY: help hooks fmt check test run stop deps up down precommit appointment
 
 MAKEFLAGS += --no-print-directory
 MVNW := ./mvnw
@@ -14,6 +14,7 @@ help:
 	@echo "stop       kill whatever is listening on PORT (default 8080)"
 	@echo "up         full stack docker compose"
 	@echo "down       docker compose down"
+	@echo "appointment  localhost 24h + 2h Appointment (scripts/test-appointment.sh)"
 	@echo "precommit  what the hook runs"
 
 hooks:
@@ -63,3 +64,6 @@ up:
 
 down:
 	docker compose down
+
+appointment:
+	bash scripts/test-appointment.sh

@@ -2,8 +2,8 @@
 
 ## Stories
 
-1. As a caller, I want HTTP rate limits with remaining/reset headers, so that clients can back off.
-2. As a Staff Member, I want a higher HTTP budget than a Customer.
+1. As a caller, I want HTTP rate limits **per endpoint** (not one global bucket) with remaining/reset headers, so that clients can back off and a busy list GET does not block create.
+2. As a reviewer, I want **15 requests / 60 seconds** per endpoint (never a longer window), so Swagger clicks are not a friction point.
 3. As a tester, I want rate limits off in the test profile.
 4. As a reviewer, I want Swagger/OpenAPI UI (springdoc, like FastAPI `/docs`) with Authorize email/password (not paste-token only) so I can try `POST /appointments` without a separate client.
 5. As a reviewer, I want structured logs with Appointment/Reminder/Notification ids.
@@ -15,7 +15,7 @@
 
 ## Video success
 
-1. Create an Appointment (curl or Swagger).
+1. Create an Appointment (`bash scripts/test-appointment.sh`, [manual curl](../../manual-appointment.md), or Swagger).
 2. Show logs: create, Reminder rows, send (stub, `logs/notifications.log` when `notify: false`, or Mailhog).
 3. Show database rows for Appointment and Reminders/Notifications.
 4. Optionally: same Idempotency-Key replay; second Vehicle; 409 on same Vehicle.

@@ -55,7 +55,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         LettuceBasedProxyManager.builderFor(connection)
             .withExpirationStrategy(
                 ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(
-                    Duration.ofMinutes(15)))
+                    Duration.ofSeconds(60)))
             .build();
   }
 
@@ -80,39 +80,33 @@ public class RateLimitFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    String ip = clientIp(request);
-    if (!consume(
-        response,
-        "ip:" + ip,
-        properties.getRateLimit().getIpCapacity(),
-        properties.getRateLimit().getIpPeriod())) {
-      return;
-    }
-    String path = request.getRequestURI();
-    if (path.startsWith("/api/v1/auth/")) {
-      if (!consume(
-          response,
-          "login:" + ip,
-          properties.getRateLimit().getLoginCapacity(),
-          properties.getRateLimit().getLoginPeriod())) {
-        return;
-      }
+    String endpoint = RateLimitKeys.endpoint(request.getMethod(), request.getRequestURI());
+    AuthPrincipal principal = principal();
+    String who;
+    long capacity;
+    Duration period;
+    if (RateLimitKeys.loginOrRegister(endpoint)) {
+      who = "ip:" + clientIp(request);
+      capacity = properties.getRateLimit().getLoginCapacity();
+      period = properties.getRateLimit().getLoginPeriod();
+    } else if (principal != null) {
+      who = "user:" + principal.userId();
+      boolean staff = principal.role() == Role.DEALERSHIP_STAFF;
+      capacity =
+          staff
+              ? properties.getRateLimit().getStaffCapacity()
+              : properties.getRateLimit().getCustomerCapacity();
+      period =
+          staff
+              ? properties.getRateLimit().getStaffPeriod()
+              : properties.getRateLimit().getCustomerPeriod();
     } else {
-      AuthPrincipal principal = principal();
-      if (principal != null) {
-        boolean staff = principal.role() == Role.DEALERSHIP_STAFF;
-        long cap =
-            staff
-                ? properties.getRateLimit().getStaffCapacity()
-                : properties.getRateLimit().getCustomerCapacity();
-        Duration period =
-            staff
-                ? properties.getRateLimit().getStaffPeriod()
-                : properties.getRateLimit().getCustomerPeriod();
-        if (!consume(response, "user:" + principal.userId(), cap, period)) {
-          return;
-        }
-      }
+      who = "ip:" + clientIp(request);
+      capacity = properties.getRateLimit().getIpCapacity();
+      period = properties.getRateLimit().getIpPeriod();
+    }
+    if (!consume(response, who + ":" + endpoint, capacity, period)) {
+      return;
     }
     filterChain.doFilter(request, response);
   }

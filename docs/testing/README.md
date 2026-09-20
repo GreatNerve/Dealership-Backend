@@ -11,8 +11,8 @@ Terms: [CONTEXT.md](../../CONTEXT.md). Product: [../prd/](../prd/). Tech: [../tr
 | Integration | [integration.md](integration.md) | Postgres constraints, Flyway, idempotency rows, cancel/reschedule, no-show job. |
 | End-to-end | [end-to-end.md](end-to-end.md) | HTTP → Appointment → Reminders → due work → stub send → DB. JUnit under `src/test/java/com/dealership/e2e/`. |
 | Uniqueness | [uniqueness-and-concurrency.md](uniqueness-and-concurrency.md) | Assignment hard line: never the same Reminder twice, under two workers. |
-| Uniqueness | [uniqueness-and-concurrency.md](uniqueness-and-concurrency.md) | Assignment hard line: never the same Reminder twice, under two workers. |
 | Harness | [harness.md](harness.md) | Recording stub, Testcontainers, clocks, seed, profiles. |
+| Manual | [../../manual-appointment.md](../../manual-appointment.md) | Localhost curl / `bash scripts/test-appointment.sh` for 24h and 2h Appointments. |
 
 **Must pass before the video:** uniqueness + one happy-path e2e (create, Reminder rows for configured offsets, stub invoked once per offset). Capacity burst is extra: it prints how many HTTP requests the in-process app handled.
 

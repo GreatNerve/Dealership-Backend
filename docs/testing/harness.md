@@ -36,3 +36,5 @@ Optional SQL/demo seed: 1 Dealership (`Asia/Kolkata`), 1 Staff, 1 Customer, 2 Ve
 ```
 
 Do not require a human Docker Compose for CI. Testcontainers is the suite. Compose is for local manual runs and the video.
+
+Localhost Appointment (24h + 2h Reminders): `bash scripts/test-appointment.sh` or [../../manual-appointment.md](../../manual-appointment.md).

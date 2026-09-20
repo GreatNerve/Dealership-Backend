@@ -9,3 +9,4 @@ Short map:
 - End-to-end — [../testing/end-to-end.md](../testing/end-to-end.md) (`src/test/java/com/dealership/e2e/`)
 - Uniqueness / two workers — [../testing/uniqueness-and-concurrency.md](../testing/uniqueness-and-concurrency.md)
 - Capacity burst — [capacity-and-ec2.md](capacity-and-ec2.md), `RequestCapacityTest`
+- Manual localhost Appointment — [../../manual-appointment.md](../../manual-appointment.md), `scripts/test-appointment.sh`

@@ -250,14 +250,14 @@ public class AppProperties {
 
   public static class RateLimit {
     private boolean enabled = true;
-    private long loginCapacity = 5;
-    private Duration loginPeriod = Duration.ofMinutes(15);
-    private long customerCapacity = 60;
-    private Duration customerPeriod = Duration.ofMinutes(1);
-    private long staffCapacity = 300;
-    private Duration staffPeriod = Duration.ofMinutes(1);
-    private long ipCapacity = 600;
-    private Duration ipPeriod = Duration.ofMinutes(1);
+    private long loginCapacity = 15;
+    private Duration loginPeriod = Duration.ofSeconds(60);
+    private long customerCapacity = 15;
+    private Duration customerPeriod = Duration.ofSeconds(60);
+    private long staffCapacity = 15;
+    private Duration staffPeriod = Duration.ofSeconds(60);
+    private long ipCapacity = 15;
+    private Duration ipPeriod = Duration.ofSeconds(60);
 
     public boolean isEnabled() {
       return enabled;
