@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{ISO8601} UTC [%thread] %-5level %logger{36} correlation_id=%X{correlation_id} appointment_id=%X{appointment_id} reminder_id=%X{reminder_id} notification_id=%X{notification_id} worker_id=%X{worker_id} attempt=%X{attempt} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <root level="INFO">
+    <appender-ref ref="JSON"/>
+  </root>
+</configuration>

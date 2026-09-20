@@ -13,7 +13,8 @@ These tests prove the **database is the ledger**.
 
 - Reminder rows for each configured offset (default 24h + 2h) on create.
 - Inserting a second 24h Reminder for the same Appointment + schedule version fails the unique constraint.
-- Second Confirmed Appointment on the same Vehicle fails the partial unique index.
+- Second Confirmed Appointment on the same Vehicle fails the partial unique index when `one_confirmed` is true (default env).
+- `APP_ONE_CONFIRMED_PER_VEHICLE=false` → two Confirmed rows, `one_confirmed=false`.
 - Second Vehicle for the same Customer accepts.
 
 ## API idempotency table
@@ -22,6 +23,7 @@ These tests prove the **database is the ledger**.
 - Replay same key + fingerprint returns the same Appointment id; still one Appointment row.
 - Same key, different fingerprint → conflict; still one Appointment row.
 - Key expires after 24h (config); reuse after expiry is a new create.
+- UTC midnight purge: `expires_at` in the past is deleted; unexpired rows stay. Notification `idempotency_key` is not this table.
 
 ## Lifecycle
 
@@ -43,3 +45,26 @@ These tests prove the **database is the ledger**.
 ## Transactions
 
 - Failure after Appointment insert and before Reminder insert (forced) → zero Appointment rows.
+
+## Staff Reminder / Notification read
+
+- After create, Staff `GET /appointments/{id}/reminders` returns one item per offset; `offsetMinutes` and `dueAt` match `reminders.offset_minutes` / `reminders.scheduled_at` (UTC Instant, no `dueAtLocal`); each `notification.status` is `NOT_SCHEDULED` and `id` is null while not due. Never omit `notification`.
+- After a successful send, nested Notification is `SENT` with `sentAt`.
+- After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id.
+
+## Identity login
+
+- JSON `POST /auth/login` is the standard envelope with `data.access_token`. Form `username` (email) + `password` + `grant_type=password` stays unwrapped `{ access_token, token_type, expires_in }` so Swagger Authorize can fetch the JWT.
+- Missing/invalid JWT on a protected route → `401` envelope (`success: false`, `error: UNAUTHORIZED`). Customer hitting Staff-only routes → `403` envelope (`FORBIDDEN`). Never an empty body.
+
+## List enrichment (no N+1)
+
+- Hibernate statistics on: Customer `GET /appointments` with several Confirmed rows stays a bounded statement count (page + count + three `IN` loads), not one query per nested Customer / Vehicle / Dealership.
+- Staff `GET /customers` is page + count + one vehicles-by-customer-id `IN`, independent of how many Customers are on the page.
+
+## Input validation / sanitize
+
+- Invalid email, blank make, blank `scheduledAt` → `400 VALIDATION_ERROR`.
+- Padded / control-character email stores lowercase. Dirty Vehicle Number stores the normalized plate.
+- Form login password shorter than 8 → `400 VALIDATION_ERROR`.
+- Bad IANA timezone → `400 INVALID_TIMEZONE`. `q` longer than max → `400 INVALID_Q`.

@@ -8,11 +8,16 @@ Documented now. Created when implementing. Do not invent a second layout.
   CLAUDE.md
   CONTEXT.md
   README.md                          # later, summarized from docs
-  pom.xml
+  Makefile
+  .githooks/pre-commit               # format + test; install with make hooks
+  .gitignore
+  .vscode/settings.json              # format on save (Google Java Format)
+  .editorconfig
+  pom.xml                            # includes Spotless
   Dockerfile                         # multi-stage Java 21 app image
   .dockerignore
-  docker-compose.yml                 # deps only: postgres, rabbitmq, redis, mailhog
-  docker-compose.app.yml             # deps + app
+  docker-compose.deps.yml            # postgres, rabbitmq, redis, mailhog
+  docker-compose.yml                 # main: deps + app
   .cursor/rules/project-constraints.mdc
   docs/
     prd/                             # product modules
@@ -29,7 +34,9 @@ Documented now. Created when implementing. Do not invent a second layout.
     vehicle/
     appointment/
     reminder/
-    notification/
+    notification/                    # Notification + outbox (JPA / SKIP LOCKED claim)
+      FileNotificationLog.java       # notify:false → logs/notifications.log
+      smtp/                          # NotificationSender, stub, SMTP, MailWorker
   src/main/resources/
     application.yml
     db/migration/
@@ -38,4 +45,6 @@ Documented now. Created when implementing. Do not invent a second layout.
   no-push/
 ```
 
-`docker-compose.yml` never starts the app. Local: Compose deps + `./mvnw spring-boot:run`. Full stack: `docker-compose.app.yml`.
+Local Maven: `docker compose -f docker-compose.deps.yml up -d` then `./mvnw spring-boot:run`. Full stack: `docker compose up --build` (main file includes the app).
+
+What each Java type holds: [code-style.md](code-style.md). Packages are **by module** (`appointment`, `notification`). Role is the **filename**. Nested folders are **concerns** (`notification/smtp`), not `controller/` / `service/` layers. Do not nest `notification/notification`.

@@ -2,7 +2,7 @@
 
 Modular PRD. Terms: [CONTEXT.md](../../CONTEXT.md). Tech: [../trd/README.md](../trd/README.md). Architecture decisions: [../decision/README.md](../decision/README.md). Testing: [../testing/README.md](../testing/README.md).
 
-Do not implement until asked. Discussion updates docs only.
+Discussion updates docs in the same turn. Application code lives under `src/` after an explicit implement request.
 
 | Module | File |
 | --- | --- |

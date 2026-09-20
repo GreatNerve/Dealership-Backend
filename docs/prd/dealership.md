@@ -12,5 +12,5 @@
 - Creating a Dealership attaches the creator as Staff Member of that shop (home Dealership).
 - Dealership has an IANA **Dealership Timezone**. Staff GET of Appointments uses it. Mail uses **Booking Offset** from `scheduledAt`, not this zone.
 - One home Dealership per Staff Member in v1.
-- No Dealership volume cap. Abuse control is one Confirmed Appointment per Vehicle.
+- No Dealership volume cap. Abuse control is one Confirmed Appointment per Vehicle (`APP_ONE_CONFIRMED_PER_VEHICLE`, default on).
 - Staff invites and extra roles (admin vs advisor) are later.

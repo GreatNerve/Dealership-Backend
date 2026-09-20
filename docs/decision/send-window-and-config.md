@@ -1,6 +1,6 @@
 # Send window and configurable offsets
 
-Reminder offsets are **config** (`app.reminders.offsets`, default 24h and 2h). I do not hardcode durations in Java. Confirmation mail is not v1.
+Reminder offsets are **config** (`app.reminders.offsets` / `APP_REMINDER_OFFSETS`, default `24h,2h`). The list can grow (`7d,24h,6h,2h`) without a Java enum or a schema migration. I store each value as `offset_minutes`. Confirmation mail is not v1.
 
 Notification/outbox rows appear **only when due**. A Reminder ten days out must not create a Notification.
 

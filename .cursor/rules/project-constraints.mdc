@@ -10,14 +10,16 @@ alwaysApply: true
 - Use glossary terms. Appointment not booking. Reminder vs Notification are different.
 - No Lombok. Record DTOs. Explicit JPA entities. UUID primary keys.
 - Comments in Java: only non-obvious why. See `docs/trd/comments.md`.
-- Reuse, no redundancy, lean diffs: `docs/trd/code-style.md`. One page/access/time/Reminder-SQL/sender.
-- API docs: springdoc-openapi (Swagger UI), see `docs/trd/openapi.md`. Not springfox.
-- JPA for CRUD. Native SQL / JdbcTemplate for SKIP LOCKED, due-time insert, send-window expire, no-show UPDATE, outbox snapshot. Do not hydrate full graphs to do clock math.
-- Redis = Bucket4j token bucket HTTP limits only. Postgres = ledger (Reminders, one Confirmed per Vehicle).
+- Reuse, no redundancy, lean diffs: `docs/trd/code-style.md`. One page/access/time/Reminder-SQL/sender/`ApiErrorCode`/`Inputs`.
+- API docs: springdoc-openapi (Swagger UI), see `docs/trd/openapi.md`. Authorize is OAuth2 password (username = email), not paste-only Bearer. Not springfox.
+- JPA for CRUD. Native SQL / JdbcTemplate for SKIP LOCKED, due-time insert, send-window expire, no-show UPDATE. Do not hydrate full graphs to do clock math.
+- Redis = Bucket4j token bucket HTTP limits only. Postgres = ledger (Reminders, one Confirmed per Vehicle when `APP_ONE_CONFIRMED_PER_VEHICLE=true`).
 - Staff create Appointments at home Dealership only.
-- List GETs paginated **and searchable** (`page`, `size`, `q`). Reads: own or home Dealership, else 404.
+- List GETs paginated **and searchable** (`page`, `size`, `q`). Default `size` **100**, max **1000**. Nested refs batched (`findAllById` / `findByCustomerIdIn`), not per-row `findById`. Appointment reads: own or home Dealership, else 404. Staff `GET /customers` (and `/customers/{id}/vehicles`) to obtain ids for booking. Staff `POST /customers` and `POST /customers/{id}/vehicles` for walk-ins. Staff `GET /appointments/{id}/reminders` for Reminder + Notification (`offsetMinutes`, `dueAt` UTC, always-present `notification`, `NOT_SCHEDULED` until a row exists) and `lastError` (home Dealership); replay is still `POST /notifications/{id}/replay`.
+- Reminder offsets, no-show grace, JWT, workers, pagination, rate limits, and `APP_ONE_CONFIRMED_PER_VEHICLE` from env/config. Status/role columns are PostgreSQL ENUM + Java enum, not `varchar`. Reminder offsets are `APP_REMINDER_OFFSETS` (`24h,2h` default; add `7d`, `6h`) stored as `offset_minutes`, not an enum.
 - Reminder offsets from config. No confirmation mail. Workers 2–4, lease heartbeat.
 - Shop-floor In Progress/Completed is later. Do not invent it.
-- Never log raw contact or full VIN. Default Notification Mode is stub.
+- Never log raw contact or full **Vehicle Number**. Default Notification Mode is stub. `notify: false` appends `logs/notifications.log`; `notify: true` uses stub or SMTP.
 - Duplicate Reminder prevention must be a unique constraint plus a test, not an application `if`.
 - Store Appointment `scheduled_at` as UTC **and** `display_offset` from `scheduledAt`. No Customer timezone in the payload. Mail/Customer GET use Booking Offset. Staff GET uses Dealership Timezone. JVM UTC so EC2 host zone never leaks. Never print UTC as the only time in mail. Clock math is set-based SQL.
+- Idempotency-Key TTL 24h. Expired `idempotency_keys` purged at UTC midnight. Notification `idempotency_key` is not TTL-purged.

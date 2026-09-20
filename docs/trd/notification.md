@@ -1,15 +1,48 @@
 # Notification (TRD)
 
-Outbox publisher drains with SKIP LOCKED → RabbitMQ. **2–4** consumers (default 2), each `prefetch=1`. Lease 30s with heartbeat; SMTP timeout shorter than lease.
+Outbox publisher drains with SKIP LOCKED (`OutboxRepository.claim`) → RabbitMQ. Notification and outbox **rows** are JPA (`NotificationRepository`, `OutboxEventRepository`). **2–4** consumers (default 2), each `prefetch=1`. Lease 30s with heartbeat; SMTP timeout shorter than lease.
 
-`NotificationSender`: `stub` logs payload (no raw contact); `smtp` uses JavaMail to Mailhog or Brevo. Format from the **outbox snapshot** (`scheduled_at` + `display_offset` → `10:00 PM (UTC+05:30)`). Never send UTC as the only time. Never use the EC2 host zone. Do not reload Appointment/Customer/Vehicle/Dealership entities to build the body. See [time.md](time.md).
+Send path lives in `com.dealership.notification.smtp` (`NotificationSender`, stub, SMTP, `MailWorker`). Notification rows, outbox, and HTTP stay in `com.dealership.notification`.
 
-Notification idempotency key: `appointmentId:reminderType:scheduleVersion` (unique).
+`NotificationSender`: `stub` logs payload (no raw contact); `smtp` uses JavaMail to Mailhog or Brevo. `notify: false` does not use that sender — `FileNotificationLog` appends `app.notifications.log-dir` / `notifications.log` (`APP_NOTIFICATIONS_LOG_DIR`, default `logs`). Format from the **outbox snapshot** (`scheduled_at` + `display_offset` → `10:00 PM (UTC+05:30)`). Never send UTC as the only time. Never use the EC2 host zone. Do not reload Appointment/Customer/Vehicle/Dealership entities to build the body. See [time.md](time.md).
+
+Notification idempotency key: `appointmentId:offsetMinutes:scheduleVersion` (unique).
 
 Transient (timeout, 429, 5xx) → `RETRY_SCHEDULED`, exponential backoff + jitter, max 5 attempts. Permanent → `DEAD_LETTER` in Postgres (source of truth).
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| POST | `/notifications/{id}/replay` | Dead-letter or notify-off. Same key. 202. 409 if already SENT. |
+| GET | `/appointments/{id}/reminders` | Staff, home Dealership, else 404. One nested `notification` **per Reminder**, always present. Also `offsetMinutes` + `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone. No `dueAtLocal`. No `notifications` row → `{ "id": null, "status": "NOT_SCHEDULED", … }`. Do not insert that row. `lastError` is Staff-only. Not a list GET; do not paginate. |
+| POST | `/notifications/{id}/replay` | Dead-letter. Same key. 202. 409 if already SENT. Needs a real Notification id (`NOT_SCHEDULED` has none). |
 
-Staff JWT (or `dev`). Config: `app.notifications.mode=stub|smtp`.
+Staff JWT (or `dev`). Config: `app.notifications.mode=stub|smtp`, `app.notifications.log-dir` (`APP_NOTIFICATIONS_LOG_DIR`, default `logs`). Java `NotificationStatus` includes `NOT_SCHEDULED` for this GET. PostgreSQL `notification_status` does **not** — GET synthesizes it. Stored rows stay `PENDING`…`CANCELLED`.
+
+How to read the pair:
+
+Example (Staff, shop `Asia/Kolkata`; visit `2026-09-22T22:00:00+05:30`; 24h offset):
+
+```json
+{
+  "offsetMinutes": 1440,
+  "dueAt": "2026-09-21T16:30:00Z",
+  "reminderStatus": "PENDING",
+  "notification": {
+    "id": null,
+    "status": "NOT_SCHEDULED",
+    "attempts": 0,
+    "lastError": null,
+    "sentAt": null,
+    "nextAttemptAt": null
+  }
+}
+```
+
+Client: format `dueAt` with Dealership `timezone` (`Asia/Kolkata`), not `Date` in the browser zone.
+
+| What you see | Meaning |
+| --- | --- |
+| Reminder `PENDING`, Notification `NOT_SCHEDULED` | Window not due yet. |
+| Reminder `EXPIRED` / `CANCELLED`, Notification `NOT_SCHEDULED` | Window skipped or Appointment moved. Not a SMTP failure. |
+| Notification `SENT` + `sentAt` | Delivered (file log, stub, or SMTP). Cannot unsend. |
+| Notification `RETRY_SCHEDULED` + `lastError` | Transient failure; will retry. |
+| Notification `DEAD_LETTER` + `lastError` | Permanent or max attempts. Staff `POST /notifications/{id}/replay`. |

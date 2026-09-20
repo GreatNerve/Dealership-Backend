@@ -1,6 +1,6 @@
 # Time and timezones (TRD)
 
-**No code until asked.** The clock is UTC. The payload already carries the offset. Do **not** ask for a Customer timezone field.
+The clock is UTC. The payload already carries the offset. Do **not** ask for a Customer timezone field.
 
 ## Why (EC2)
 
@@ -26,6 +26,25 @@ JVM and Postgres: UTC. Naive datetime (no offset) → `400`.
 
 Parse offset, convert to Instant. Store `2026-09-22T16:30:00Z` and `display_offset = +05:30`. Reschedule: take Instant and offset from the new `scheduledAt`.
 
+JSON must be valid: no trailing comma (`{ "scheduledAt": "..." }` not `{ "scheduledAt": "...", }`). Trailing comma → `400 MALFORMED_REQUEST`.
+
+## Reminder send times
+
+Create/reschedule does **not** send mail. It inserts one Reminder row per configured offset (`APP_REMINDER_OFFSETS`, default `24h,2h`). That row’s `scheduled_at` is the **send due Instant** (`visit scheduled_at − offset`). A Notification is created only when that Instant is due and the worker claims it. `notify: false` still claims: append `logs/notifications.log` (no contact) and store `SENT`. `notify: true` uses Notification Mode.
+
+Staff `GET /appointments/{id}/reminders` is the table for one Appointment (`offsetMinutes`, `dueAt`, Reminder status, nested Notification).
+
+Example visit `2026-09-21T04:40:00+05:30` (`notify: true`):
+
+| Offset | `offsetMinutes` | Send `dueAt` (UTC) | Local (Booking Offset) | At create ~`2026-09-21T02:37+05:30` |
+| --- | --- | --- | --- | --- |
+| 24h | 1440 | `2026-09-19T23:10:00Z` | `2026-09-20T04:40:00+05:30` | already past → Reminder `EXPIRED`, no mail |
+| 2h | 120 | `2026-09-20T21:10:00Z` | `2026-09-21T02:40:00+05:30` | still ahead → Reminder `PENDING`; Notification around `02:40` |
+
+If the visit is **less than 2 hours** away, **both** default offsets are already past → both `EXPIRED` → no Notification. Book **more than 2 hours** out for the 2h mail, **more than 24 hours** out for the 24h mail.
+
+Send window (SQL): send while `now()` is after that Reminder’s `dueAt` and before the **next** Reminder `dueAt` (or the visit time for the last offset). Miss that window → `EXPIRED`, not a retry.
+
 ## Out (JSON)
 
 Always:
@@ -42,7 +61,8 @@ Plus `scheduledAtLocal` for the caller:
 | Caller | Uses | Example |
 | --- | --- | --- |
 | Customer GET | Appointment `display_offset` | `2026-09-22T22:00:00+05:30` |
-| Staff GET | Dealership Timezone | shop wall clock |
+| Staff GET Appointment | Dealership Timezone | shop wall clock (`scheduledAtLocal` for Swagger/curl) |
+| Staff GET `/appointments/{id}/reminders` | one Instant | `dueAt` UTC only. Client formats with Dealership **IANA** timezone from the shop. Not a second `dueAtLocal`. Not the browser zone. Not Booking Offset. |
 
 ## Mail
 
@@ -54,19 +74,19 @@ Not `16:30 UTC` as the only time. Not the EC2 local clock. Stub payload uses the
 
 ## Math (PostgreSQL, not Java)
 
-`display_offset` is never in a `WHERE`. Config offsets (`24h`, `2h`) are bound as `interval`. Postgres does the arithmetic so EC2 and the JVM clock cannot drift from the ledger.
+No-show grace is config `app.reminders.no-show-grace` (default `1h`), bound as `interval`. Config offsets (`APP_REMINDER_OFFSETS`, default `24h,2h`) are stored as `offset_minutes`. Postgres does the arithmetic so EC2 and the JVM clock cannot drift from the ledger.
 
 Insert Reminder due times (same transaction as the Appointment):
 
 ```sql
-INSERT INTO reminders (id, appointment_id, reminder_type, schedule_version, scheduled_at, status, ...)
+INSERT INTO reminders (id, appointment_id, offset_minutes, schedule_version, scheduled_at, status, ...)
 SELECT gen_random_uuid(),
        a.id,
-       :reminderType,
+       :offsetMinutes,
        a.schedule_version,
-       a.scheduled_at - CAST(:offset AS interval),
+       a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
        CASE
-         WHEN a.scheduled_at - CAST(:offset AS interval) <= now() THEN 'EXPIRED'
+         WHEN a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute') <= now() THEN 'EXPIRED'
          ELSE 'PENDING'
        END,
        ...
@@ -102,7 +122,7 @@ The application layer does not load every due row, compute times, and write back
 | Mail | After claim, one JOIN returning a **lean projection**. Copy that into outbox `payload` jsonb (replicate what the mail needs). Consumer must not `findById` the full Appointment/Customer/Vehicle/Dealership graph |
 | Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at` |
 
-Outbox snapshot fields: appointment id, reminder type, schedule version, `scheduled_at`, `display_offset`, dealership name, contact (for SMTP, never logged). Not full VIN, not unused columns.
+Outbox snapshot fields: appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, contact (for SMTP, never logged). Not full **Vehicle Number**, not unused columns.
 
 `display_offset` is never in a `WHERE`.
 

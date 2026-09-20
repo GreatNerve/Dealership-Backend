@@ -12,14 +12,14 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Skip / expire / send windows
 
-Ledger behaviour is **integration SQL** (INSERT CASE EXPIRED, send-window `UPDATE`, claim `WHERE`). Unit tests must not fake `Instant.minus(24, HOURS)` as the source of truth.
+`ReminderRepository` SQL is **integration** (INSERT CASE EXPIRED, send-window `UPDATE`, claim `WHERE`). Unit tests must not fake `Instant.minus(24, HOURS)` as the source of truth.
 
 - `scheduledAt` already past → create rejected (policy lives here; HTTP mapping is e2e).
 - Cancelled or old schedule version → must not send (policy; SQL is integration).
 
 ## One Confirmed per Vehicle
 
-- Policy function: a second Confirmed for the same Vehicle is a conflict. (The unique index is integration.)
+- Policy function: a second Confirmed for the same Vehicle is a conflict when the cap is on. (The unique index is integration; env `APP_ONE_CONFIRMED_PER_VEHICLE` is the switch.)
 - Two Vehicles, two Confirmed → allowed.
 
 ## Idempotency fingerprint
@@ -27,6 +27,12 @@ Ledger behaviour is **integration SQL** (INSERT CASE EXPIRED, send-window `UPDAT
 - Same key + same body → replay.
 - Same key + different body → reuse error.
 - Missing key → invalid.
+
+## Inputs
+
+- `Inputs.sanitize` trims and drops ISO control / format / private-use / surrogate characters.
+- `Inputs.email` then lowercases. Null stays null.
+- Page `q` uses sanitize; blank after sanitize is no filter.
 
 ## Retry / backoff
 

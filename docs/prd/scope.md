@@ -3,15 +3,15 @@
 ## Not in v1
 
 - Shop-floor **In Progress** / **Completed**.
-- Full privacy matrix (cross-shop history, Customer directory search). v1 reads: own / home shop only, else 404.
+- Full privacy matrix (cross-shop history). v1 reads: own / home shop, else 404 — except Staff Customer directory search needed to book.
 - Slot calendars, bay/technician double-booking, payments, WhatsApp, Keycloak/SSO.
 - Kafka, Spring Cloud Gateway, ECS/EKS.
 - Per-Customer numeric caps and per-Dealership volume caps (rejected).
-- Staff creating Customers; extra staff roles; Dealership groups.
+- Extra staff roles; Dealership groups.
 
 ## Privacy (later)
 
-Cross-shop history and Staff looking up arbitrary Customers are not designed. v1 read rule is already locked: own or home Dealership, otherwise 404.
+Cross-shop Appointment history is later. Staff **may** search Customers and their Vehicles to obtain ids for home-Dealership booking. Appointment reads stay own / home Dealership, otherwise 404.
 
 ## Implementation order (same product)
 

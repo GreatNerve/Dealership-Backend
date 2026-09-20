@@ -2,7 +2,7 @@
 
 Modular TRD. Product: [../prd/README.md](../prd/README.md). Runtime: [../architecture.md](../architecture.md). Architecture decisions: [../decision/README.md](../decision/README.md).
 
-Do not implement until asked. Discussion updates **docs only** — no `pom.xml`, no `src/`.
+Discussion updates docs in the same turn. Application code lives under `src/` after an explicit implement request.
 
 | Topic | File |
 | --- | --- |

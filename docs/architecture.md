@@ -7,14 +7,14 @@ Normative details: [prd/](prd/README.md), [trd/](trd/README.md), [decision/](dec
 One Spring Boot JVM. PostgreSQL is the ledger and the 24h/2h clock. RabbitMQ carries due Notification work after an outbox drain. Redis holds Bucket4j token buckets only. Mail is 2–4 leased workers (default 2).
 
 ```text
-Client (Swagger / curl)
+Client (Swagger / curl / https://dealership.greatnerve.com)
   -> Rate limit (Bucket4j + Redis)
   -> JWT (unless dev profile)
   -> REST modules
        -> PostgreSQL  (appointments, reminders, idempotency, outbox)
               |
               v
-       Reminder due poller (SKIP LOCKED + lease)
+       ReminderScheduler → ReminderService → ReminderRepository (SKIP LOCKED + lease)
               |
               v
        Outbox publisher (SKIP LOCKED)
@@ -24,6 +24,7 @@ Client (Swagger / curl)
               |
               v
        NotificationSender (stub | SMTP Mailhog/Brevo)
+         or FileNotificationLog when notify=false
               |
               v
        Persist SENT / RETRY_SCHEDULED / DEAD_LETTER
@@ -33,7 +34,7 @@ Client (Swagger / curl)
 
 ```text
 POST /appointments + Idempotency-Key
-  validate role-specific body
+  sanitize strings; Bean Validation; then role-specific body
   begin transaction
     insert or replay idempotency_keys
     insert appointments (CONFIRMED, scheduled_at timestamptz, display_offset)
@@ -44,9 +45,13 @@ POST /appointments + Idempotency-Key
   return 201
 ```
 
+Expired `idempotency_keys` (`expires_at < now()`) are deleted at UTC midnight (`IdempotencyScheduler`). Reuse after TTL is still a new create. Notification `idempotency_key` is not this table.
+
 Outbox rows are **not** written here. Reminders sit in Postgres until they are due. See Due work.
 
 Customer path uses `vehicleId + dealershipId + scheduledAt`. Staff path uses `customerId + vehicleId + scheduledAt` and **home Dealership** from `dealership_staff`. Other Venue is Customer self-book. Take **Booking Offset** from `scheduledAt`; mail uses that. Staff GET formats in **Dealership Timezone**. JVM is UTC so EC2 us-east does not affect India bookings. See [trd/time.md](trd/time.md).
+
+Staff mail status: `GET /appointments/{id}/reminders` (home Dealership). Reminder rows exist from create. Each item: `offsetMinutes`, `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone. Nested `notification` is always present: **Not Scheduled** until a Notification row exists, then the stored status. `lastError` is on that object, not the Appointment.
 
 ## 3. Due work
 
@@ -80,9 +85,9 @@ WHERE id = (
 RETURNING *;
 ```
 
-Same SKIP LOCKED pattern for `outbox_events`. Native SQL / JdbcTemplate for clock, claim, outbox snapshot — not for ordinary HTTP CRUD.
+Same SKIP LOCKED pattern for `outbox_events`. Native SQL / JdbcTemplate for clock and claim — not for Notification/outbox row CRUD.
 
-In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (appointment id, reminder type, schedule version, `scheduled_at`, `display_offset`, dealership name, contact). Mail worker uses that snapshot; it does not reload the full graph.
+In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, contact, `notify`). Mail worker uses that snapshot; it does not reload the full graph. `notify: false` → append `logs/notifications.log`. `notify: true` → stub or SMTP.
 
 External I/O is **outside** the claim transaction. Renew the lease (heartbeat) while SMTP runs so a slow send is not stolen. A second short transaction records the result. Stale workers must not complete after lease loss (check `locked_by` / version) and must not send if they lost the lease.
 
@@ -91,10 +96,10 @@ External I/O is **outside** the claim transaction. Renew the lease (heartbeat) w
 At-least-once processing, idempotent Notification key:
 
 ```text
-appointmentId + ":" + reminderType + ":" + scheduleVersion
+appointmentId + ":" + offsetMinutes + ":" + scheduleVersion
 ```
 
-UNIQUE on `notifications.idempotency_key`. Stub and SMTP both receive that key. Exactly-once mail is not claimed if Brevo accepts and the process dies before SENT.
+UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. Exactly-once mail is not claimed if Brevo accepts and the process dies before SENT.
 
 ## 5. Cancellation, reschedule, no-show
 
@@ -114,4 +119,4 @@ Average create rate is still low. The spike is many Reminders becoming due in th
 
 ## 8. Demo path
 
-Seed: 1 Dealership, 1 Staff Member, 1 Customer, 2 Vehicles. Default `app.notifications.mode=stub`. Optionally `smtp` + Mailhog. Video: POST Appointment → logs → DB rows. Same Idempotency-Key replay is the reliability clip.
+Seed: 1 Dealership, 1 Staff Member, 1 Customer, 2 Vehicles. Default `app.notifications.mode=stub`. Optionally `smtp` + Mailhog. `notify: false` writes `logs/notifications.log`. Video: POST Appointment → logs → DB rows. Same Idempotency-Key replay is the reliability clip.

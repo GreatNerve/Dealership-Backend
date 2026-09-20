@@ -6,17 +6,17 @@ A good test names a **behaviour** (“same Idempotency-Key returns the same Appo
 
 - **Unit** — no Spring context, no Docker. Fast. HTTP parse, mail format, fingerprints. Not Postgres interval arithmetic.
 - **Integration** — real PostgreSQL (Testcontainers). Unique indexes, SQL clock, set-based expire/no-show. Rate limits off.
-- **End-to-end** — HTTP API + app + Postgres + RabbitMQ + Redis (limits off) + recording stub. One vertical slice at a time.
+- **End-to-end** — HTTP API + app + Postgres + RabbitMQ + Redis (limits off) + recording stub. One vertical slice at a time. Lives in `src/test/java/com/dealership/e2e/`, run by `./mvnw test`. Not a throwaway script outside the repo.
 
 Do not mock Postgres for uniqueness. The assignment is “provable.” An `if` in Java is not the proof; the constraint plus a failing second insert is.
 
 ## Stub NotificationSender
 
-Tests never hit Brevo. The stub **records** each call: payload (no raw contact), idempotency key, count, Reminder Type. Assertions read the recorder, then the database.
+Tests never hit Brevo. The stub **records** each call: payload (no raw contact), idempotency key, count, Reminder Offset minutes. Assertions read the recorder, then the database.
 
 ## Time
 
-Do not `sleep(24 hours)`. Inject a clock or insert Reminders already due (`scheduled_at` in the past while Appointment is still in the future) to fire the poller. Mail assertions check Local Wall Time from Appointment **Booking Offset**, not the UTC Instant string alone. Due-time subtraction is asserted against Postgres, not a Java `minus`.
+Do not `sleep(24 hours)`. Inject a clock or insert Reminders already due (`scheduled_at` in the past while Appointment is still in the future) to fire `ReminderScheduler`. Mail assertions check Local Wall Time from Appointment **Booking Offset**, not the UTC Instant string alone. Due-time subtraction is asserted against Postgres, not a Java `minus`.
 
 ## Profiles
 

@@ -1,0 +1,47 @@
+package com.dealership.shared.api;
+
+import org.springframework.http.HttpStatus;
+
+public enum ApiErrorCode {
+  INVALID_PAGE(HttpStatus.BAD_REQUEST),
+  INVALID_SIZE(HttpStatus.BAD_REQUEST),
+  INVALID_Q(HttpStatus.BAD_REQUEST),
+  INVALID_REGISTRATION(HttpStatus.BAD_REQUEST),
+  INVALID_SCHEDULED_AT(HttpStatus.BAD_REQUEST),
+  INVALID_DISPLAY_OFFSET(HttpStatus.BAD_REQUEST),
+  INVALID_TIMEZONE(HttpStatus.BAD_REQUEST),
+  SCHEDULED_AT_PAST(HttpStatus.BAD_REQUEST),
+  STAFF_DEALERSHIP_FROM_HOME(HttpStatus.BAD_REQUEST),
+  MISSING_IDEMPOTENCY_KEY(HttpStatus.BAD_REQUEST),
+  MISSING_HEADER(HttpStatus.BAD_REQUEST),
+  MALFORMED_REQUEST(HttpStatus.BAD_REQUEST),
+  VALIDATION_ERROR(HttpStatus.BAD_REQUEST),
+
+  UNAUTHORIZED(HttpStatus.UNAUTHORIZED),
+  FORBIDDEN(HttpStatus.FORBIDDEN),
+  NOT_FOUND(HttpStatus.NOT_FOUND),
+
+  EMAIL_TAKEN(HttpStatus.CONFLICT),
+  REGISTRATION_TAKEN(HttpStatus.CONFLICT),
+  HOME_DEALERSHIP_EXISTS(HttpStatus.CONFLICT),
+  VEHICLE_ALREADY_CONFIRMED(HttpStatus.CONFLICT),
+  VEHICLE_NOT_OWNED(HttpStatus.CONFLICT),
+  NOT_CONFIRMED(HttpStatus.CONFLICT),
+  IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT),
+  IDEMPOTENCY_IN_FLIGHT(HttpStatus.CONFLICT),
+  ALREADY_SENT(HttpStatus.CONFLICT),
+
+  RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS),
+  RETRYABLE(HttpStatus.SERVICE_UNAVAILABLE),
+  INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
+
+  private final HttpStatus status;
+
+  ApiErrorCode(HttpStatus status) {
+    this.status = status;
+  }
+
+  public HttpStatus status() {
+    return status;
+  }
+}

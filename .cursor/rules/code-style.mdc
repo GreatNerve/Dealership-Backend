@@ -11,4 +11,5 @@ When writing Java (only after the user **explicitly** asks to implement):
 - No copy-paste. No second clock in Java. No full-graph load for mail.
 - Smallest diff. Refactor only what you touch. Delete new dead code.
 - Shared cross-cutting in `com.dealership.shared`. Native SQL stays with the owning module.
-- Passwords BCrypt. Email lowercase unique. VIN uppercase unique. Details: `docs/trd/code-style.md`.
+- Nested refs on list GETs: one `findAllById` / `IN` per table. Never `findById` inside the row map.
+- Passwords BCrypt. Email lowercase unique (`Inputs.email`). **Vehicle Number** uppercase unique. Details: `docs/trd/code-style.md`.

@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+target
+no-push
+docs
+.cursor
+*.md
+.env

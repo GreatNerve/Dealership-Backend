@@ -1,0 +1,30 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  flyway:
+    locations: classpath:db/migration
+  datasource:
+    hikari:
+      maximum-pool-size: 24
+  jpa:
+    properties:
+      hibernate:
+        generate_statistics: true
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: true
+
+app:
+  rate-limit:
+    enabled: false
+  notifications:
+    mode: stub
+    log-dir: target/test-logs
+  workers:
+    poll-interval: 2s
+
+logging:
+  level:
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: WARN

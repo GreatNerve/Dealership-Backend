@@ -1,21 +1,57 @@
-# Bytecode
+# Bytecode / build
 target/
 *.class
 *.jar
+*.war
+*.ear
 !.mvn/wrapper/maven-wrapper.jar
+hs_err_pid*
+replay_pid*
+*.hprof
 
-# Env and local
+# Secrets and local env (keep .env.example)
 .env
-*.env.local
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+credentials.json
 
-# Untracked local notes and assignment dumps
+# Assignment dumps, local notes, PDFs we must not publish
 no-push/
 
-# IDE
+# Logs
+*.log
+logs/
+
+# Local compose / app overrides
+docker-compose.override.yml
+application-local.yml
+src/main/resources/application-local.yml
+
+# IDE (keep shared format-on-save)
 .idea/
 *.iml
-.vscode/
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+.vscode/*
+!.vscode/settings.json
+
+# Cursor local (keep repo rules)
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+*~
+
+# Testcontainers / Docker leftovers
+.testcontainers/

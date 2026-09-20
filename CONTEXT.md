@@ -29,15 +29,19 @@ _Avoid_: Account, principal
 ### Assets and bookings
 
 **Vehicle**:
-A car (or similar) owned by exactly one **Customer**, identified by VIN.
-_Avoid_: Car, unit, asset
+A car (or similar) owned by exactly one **Customer**, identified by its **Vehicle Number**.
+_Avoid_: Car, unit, asset, VIN
+
+**Vehicle Number**:
+The registration plate of a **Vehicle** (example `KA01AB1234` or `KA-01-AB-1234`). Unique after sanitize, uppercase, and stripping spaces/hyphens. Not a VIN.
+_Avoid_: VIN, chassis number
 
 **Appointment**:
 A booked service visit for one **Vehicle** at one **Dealership** at one `scheduledAt`.
 _Avoid_: Booking, reservation, slot, job (job is shop-floor, later)
 
 **Blocking Appointment**:
-An **Appointment** in status `CONFIRMED`. A **Vehicle** may have at most one.
+An **Appointment** in status `CONFIRMED`. Default: a **Vehicle** may have at most one (`APP_ONE_CONFIRMED_PER_VEHICLE=true`). Set `false` to allow many Confirmed on the same Vehicle.
 _Avoid_: Active booking (say Blocking Appointment), open job
 
 **Creator**:
@@ -72,24 +76,28 @@ _Avoid_: Using In Progress in v1 APIs
 A scheduled intent to notify the **Customer** for one **Appointment**, at each configured offset before `scheduledAt` (default 24 hours and 2 hours).
 _Avoid_: Alert, notification (Notification is the delivery record)
 
-**Reminder Type**:
-One type per configured offset (default `TWENTY_FOUR_HOUR`, `TWO_HOUR`). Not confirmation in v1.
-_Avoid_: Kind, channel
+**Reminder Offset**:
+One configured duration before `scheduledAt` (default `24h` and `2h`). Expand the list in config (`7d`, `6h`, `30m`, …). Stored as `offset_minutes`. Not confirmation in v1.
+_Avoid_: Reminder Type, a closed enum of offsets, kind, channel
 
 **Notification**:
 The delivery attempt record for one **Reminder** (stub log or Brevo SMTP).
 _Avoid_: Message, email (email is a channel), reminder (Reminder is the schedule)
 
+**Not Scheduled**:
+Staff GET status when that **Reminder** has no **Notification** row yet (not due, or window already skipped). Always return the Notification object; do not omit it or send JSON `null`. Not a stored row. Not a send failure.
+_Avoid_: pending (PENDING is a real Notification row), missing, N/A, null notification
+
 **Notification Mode**:
-Process-wide `stub` or `smtp`. Stub is the assignment default; SMTP is Brevo (Mailhog in local Docker).
+Process-wide `stub` or `smtp`. Stub is the assignment default; SMTP is Brevo (Mailhog in local Docker). Used when Appointment `notify` is true.
 _Avoid_: Channel as the flag name
 
 **Mock Appointment**:
-An **Appointment** created with notify-off so no **Notification** is sent until replay or a later enable.
-_Avoid_: Fake appointment, test appointment (tests are separate)
+An **Appointment** created with `notify: false`. Due Reminders append `logs/notifications.log` (ids and wall time, no contact) and store a **Notification** `SENT`. No email. `notify: true` uses **Notification Mode** (stub or SMTP).
+_Avoid_: Fake appointment, test appointment (tests are separate), junk
 
 **Mail Replay**:
-Re-enqueue of a dead-lettered or skipped **Notification** using the same idempotency key.
+Re-enqueue of a dead-lettered **Notification** using the same idempotency key.
 _Avoid_: Resend (implies a new identity), retry (retry is automatic)
 
 **Booking Offset**:
@@ -107,7 +115,7 @@ _Avoid_: Treating Local Wall Time as the database value; using the host clock
 ### Reliability
 
 **Idempotency Key**:
-A client-supplied header value that makes `POST /appointments` safe to retry. Distinct from notification idempotency.
+A client-supplied header value that makes `POST /appointments` safe to retry. Distinct from notification idempotency. Rows expire after 24h and unused expired rows are deleted at UTC midnight.
 _Avoid_: Request id (correlation is different), dedupe token (too vague)
 
 **Schedule Version**:
@@ -152,7 +160,7 @@ Do not use. Do not collect a Customer timezone field. Mail uses **Booking Offset
 
 Dev: A customer has two cars. Can they have two Confirmed Appointments?
 
-Expert: Yes. The cap is one Blocking Appointment per Vehicle, not per Customer.
+Expert: Yes. The default cap is one Blocking Appointment per Vehicle, not per Customer. `APP_ONE_CONFIRMED_PER_VEHICLE=false` turns that cap off.
 
 Dev: Staff at shop A says the customer wants shop B. Can staff create that Appointment?
 
@@ -164,7 +172,7 @@ Expert: Yes. That Appointment is No-Show Expired, so it is not blocking. They ca
 
 Dev: We retried POST /appointments after a timeout. Two Reminder rows?
 
-Expert: No. Same Idempotency Key and body returns the original Appointment. Unique (appointment, Reminder Type, Schedule Version) still holds.
+Expert: No. Same Idempotency Key and body returns the original Appointment. Unique (appointment, Reminder Offset minutes, Schedule Version) still holds.
 
 Dev: The stub ran, then we switched to SMTP and hit replay. Two emails?
 

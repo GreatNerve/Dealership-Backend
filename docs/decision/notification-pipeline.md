@@ -6,4 +6,4 @@ Default sender is the **stub** (assignment-safe). A flag switches the same `Noti
 
 Before send: re-check the Appointment is still valid (Confirmed, not cancelled, still inside the send window). Then send, then persist SENT. Transient failure → retry. Exhausted retries → DEAD_LETTER / FAILED.
 
-Mock Appointments (`notify: false`) and **replay** of dead letters reuse the same notification identity.
+Mock Appointments (`notify: false`) append `logs/notifications.log` and store Notification `SENT` (same idempotency key). **Replay** of dead letters reuses that identity.

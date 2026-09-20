@@ -2,7 +2,7 @@
 
 | Method | Path | Role | Notes |
 | --- | --- | --- | --- |
-| POST | `/dealerships` | authenticated | Creator becomes Staff Member of this shop. Body: name, timezone id, address. 201. |
+| POST | `/dealerships` | authenticated | Creator becomes Staff Member of this shop. Body: name, timezone id, address. Name/address sanitized. Timezone must be IANA (`400 INVALID_TIMEZONE`). 201. |
 | GET | `/dealerships?page&size&q` | authenticated | Paginated + search (Customer picks a Venue). See [pagination.md](pagination.md), [search.md](search.md). |
 | GET | `/dealerships/{id}` | authenticated | 200 or 404. Loading/error per [conventions.md](conventions.md). |
 

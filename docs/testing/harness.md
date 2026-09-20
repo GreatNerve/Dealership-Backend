@@ -4,7 +4,7 @@
 
 Implement `NotificationSender` for tests that stores an in-memory list:
 
-- reminder type
+- offset minutes
 - appointment id
 - idempotency key
 - timestamp
@@ -32,7 +32,7 @@ Optional SQL/demo seed: 1 Dealership (`Asia/Kolkata`), 1 Staff, 1 Customer, 2 Ve
 
 ```bash
 ./mvnw test                  # unit + integration + e2e, rate limits off
-./mvnw test -Dgroups=e2e     # if we tag e2e (optional)
+./mvnw test -Dgroups=e2e     # HTTP e2e + capacity burst
 ```
 
 Do not require a human Docker Compose for CI. Testcontainers is the suite. Compose is for local manual runs and the video.
