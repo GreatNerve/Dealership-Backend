@@ -77,7 +77,7 @@ HTML + plain text from one `ReminderMail` (outbox snapshot). Date and clock from
 
 `Tuesday, 22 September 2026` / `10:00 PM`
 
-Vehicle: make, model, year, **Vehicle Number**. Subject `Service appointment — {dealership}` (not “2-hour reminder”). Not `16:30 UTC`. Not the EC2 local clock. Stub/file log may still include the offset for operators. From: `APP_MAIL_FROM` (`dheeraj@greatnerve.com`).
+Vehicle: make, model, year, **Vehicle Number**. If `users.name` is set, first line `Hi {name},`; otherwise no greeting. Subject `Service appointment — {dealership}` (not “2-hour reminder”). Not `16:30 UTC`. Not the EC2 local clock. Stub/file log may still include the offset for operators. From: `APP_MAIL_FROM` (`dheeraj@greatnerve.com`). Never log the name.
 
 ## Math (PostgreSQL, not Java)
 
@@ -130,7 +130,7 @@ The application layer does not load every due row, compute times, and write back
 | Mail | After claim, one JOIN returning a **lean projection**. Copy that into outbox `payload` jsonb (replicate what the mail needs). Consumer must not `findById` the full Appointment/Customer/Vehicle/Dealership graph |
 | Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at` |
 
-Outbox snapshot fields: appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, vehicle make/model/year, **Vehicle Number** (mail only, never logged), contact (for SMTP, never logged).
+Outbox snapshot fields: appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, customer name (optional), vehicle make/model/year, **Vehicle Number** (mail only, never logged), contact (for SMTP, never logged).
 
 `display_offset` is never in a `WHERE`.
 

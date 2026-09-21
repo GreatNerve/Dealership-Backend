@@ -18,7 +18,8 @@
 
 ## Rules
 
-- JWT in v1. Roles: `CUSTOMER`, `DEALERSHIP_STAFF`. Access token **1 day**. No refresh token in v1.
+- JWT in v1. Roles: `CUSTOMER`, `DEALERSHIP_STAFF`. Access token **7 days** (`APP_JWT_TTL`). No refresh token in v1.
+- Optional **name** on register (and Staff walk-in create). If present, Reminder mail greets `Hi {name},`. If omitted, mail has no greeting.
 - Passwords hashed (BCrypt). Email unique after sanitize (trim, strip control/format characters) + lowercase.
 - `dev` profile may skip auth for the curl demo.
 - Contact for Reminders comes from the Customer profile email (register email or Staff-created Customer). No phone in v1.

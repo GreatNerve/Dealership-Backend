@@ -45,6 +45,23 @@ class InputValidationTest extends AbstractIT {
             AuthDtos.UserResponse.class);
     assertEquals(HttpStatus.CREATED, created.getStatusCode());
     assertEquals(local + "@ex.com", created.getBody().email());
+    assertEquals(null, created.getBody().name());
+
+    ResponseEntity<AuthDtos.UserResponse> named =
+        http.postForEntity(
+            "/api/v1/auth/register",
+            Map.of(
+                "email",
+                "name-" + UUID.randomUUID() + "@ex.com",
+                "name",
+                "  Dheeraj  ",
+                "password",
+                "password1",
+                "role",
+                Role.CUSTOMER.name()),
+            AuthDtos.UserResponse.class);
+    assertEquals(HttpStatus.CREATED, named.getStatusCode());
+    assertEquals("Dheeraj", named.getBody().name());
   }
 
   @Test

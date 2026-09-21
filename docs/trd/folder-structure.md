@@ -10,7 +10,7 @@ Documented now. Created when implementing. Do not invent a second layout.
   README.md                          # front door: topic → prd / trd / decision
   manual-appointment.md              # curl flow: 24h + 2h Appointment
   Makefile
-  scripts/test-appointment.sh        # localhost 24h + 2h Appointment
+  scripts/test-appointment.sh        # URL arg: local or prod 24h + 2h Appointment
   .githooks/pre-commit               # format + test; install with make hooks
   .gitignore
   .vscode/settings.json              # format on save (Google Java Format)

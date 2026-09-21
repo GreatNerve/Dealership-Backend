@@ -5,7 +5,8 @@
 | Language | Java 21 |
 | App | Spring Boot 3.x (Maven) |
 | API | Spring MVC, Bean Validation, **springdoc-openapi-starter-webmvc-ui 2.8.x** (Boot 3 — not springdoc 3.x). UI `/swagger-ui.html`, JSON `/v3/api-docs`. See [openapi.md](openapi.md). |
-| Auth | Spring Security JWT (**1 day**, no refresh); `CUSTOMER`, `DEALERSHIP_STAFF`; `dev` may skip auth |
+| Auth | Spring Security JWT (**7 days**, `APP_JWT_TTL`, no refresh); `CUSTOMER`, `DEALERSHIP_STAFF`; `dev` may skip auth |
+| CORS | All origins (`APP_CORS_ORIGINS=*`) |
 | DB | PostgreSQL 16 |
 | Migrations | Flyway; `spring.jpa.hibernate.ddl-auto=validate` |
 | ORM | JPA for HTTP CRUD and Notification/outbox rows; native SQL / `JdbcTemplate` for clock and SKIP LOCKED claim |

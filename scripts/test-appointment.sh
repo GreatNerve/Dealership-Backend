@@ -2,13 +2,34 @@
 # Create Vehicle + Appointment and fire a Reminder without waiting 24 real hours.
 #   24h → visit in 20 hours   (24h Reminder already due)
 #   2h  → visit in 100 minutes (2h Reminder already due)
+# Pass the API URL. Offset is optional (default both).
+#   bash scripts/test-appointment.sh http://localhost:8080
+#   bash scripts/test-appointment.sh https://dealership.greatnerve.com
+#   bash scripts/test-appointment.sh http://localhost:8080 24h
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BASE="${BASE:-http://localhost:8080}"
 LOG="${LOG:-$ROOT/logs/notifications.log}"
-WHICH="${1:-both}"
 PASSWORD="password1"
+BASE=""
+WHICH="both"
+
+usage() {
+  echo "usage: $0 <url> [24h|2h|both]" >&2
+  echo "  $0 http://localhost:8080" >&2
+  echo "  $0 https://dealership.greatnerve.com" >&2
+  echo "  $0 http://localhost:8080 24h" >&2
+  exit 1
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    24h | 2h | both) WHICH="$arg" ;;
+    http://* | https://*) BASE="${arg%/}" ;;
+    *) usage ;;
+  esac
+done
+[[ -n "$BASE" ]] || usage
 
 if command -v python3 >/dev/null 2>&1; then
   PY=python3
@@ -66,10 +87,6 @@ api() {
   curl -sS -X "$method" "$BASE$path" "$@"
 }
 
-echo "GET $BASE/actuator/health"
-api GET /actuator/health
-echo
-
 TOKEN=""
 DEALERSHIP_ID=""
 
@@ -117,14 +134,6 @@ provision_fresh() {
   TOKEN="$(json_get "$cust_login" data.access_token)"
 }
 
-if login_demo 2>/dev/null; then
-  echo "logged in as customer@demo.local"
-else
-  echo "demo login skipped; registering a new Customer"
-  provision_fresh
-fi
-echo "dealershipId=$DEALERSHIP_ID"
-
 book() {
   local label="$1"
   local hours="$2"
@@ -155,14 +164,32 @@ book() {
   api GET "/api/v1/appointments/$appt" -H "Authorization: Bearer $TOKEN"
   echo
 
-  echo "wait ~4s for poller → $LOG"
+  echo "wait ~4s for poller"
   sleep 4
-  if [[ -f "$LOG" ]]; then
-    grep -F "appointment_id=$appt" "$LOG" || echo "(no line yet for $appt — sleep a few more seconds and grep $LOG)"
+  if [[ "$BASE" == *localhost* || "$BASE" == *127.0.0.1* ]]; then
+    echo "→ $LOG"
+    if [[ -f "$LOG" ]]; then
+      grep -F "appointment_id=$appt" "$LOG" || echo "(no line yet for $appt — sleep a few more seconds and grep $LOG)"
+    else
+      echo "missing $LOG (need notify:false and APP_NOTIFICATIONS_LOG_DIR=logs)"
+    fi
   else
-    echo "missing $LOG (need notify:false and APP_NOTIFICATIONS_LOG_DIR=logs)"
+    echo "file log is on the server (notify:false)"
   fi
 }
+
+echo "======== $BASE ========"
+echo "GET $BASE/actuator/health"
+api GET /actuator/health
+echo
+
+if login_demo 2>/dev/null; then
+  echo "logged in as customer@demo.local"
+else
+  echo "demo login skipped; registering a new Customer"
+  provision_fresh
+fi
+echo "dealershipId=$DEALERSHIP_ID"
 
 PLATE="KA$(date +%H%M%S)$(printf '%02d' $((RANDOM % 100)))"
 
@@ -177,12 +204,7 @@ case "$WHICH" in
     book "24h Reminder (visit ~20h from now)" 20 0 "${PLATE}A"
     book "2h Reminder (visit ~100m from now)" 1 40 "${PLATE}B"
     ;;
-  *)
-    echo "usage: $0 [24h|2h|both]" >&2
-    exit 1
-    ;;
 esac
 
 echo
 echo "done. 24h log offset=1d  |  2h log offset=2h"
-echo "log: $LOG"

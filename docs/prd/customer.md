@@ -11,4 +11,4 @@
 - A Customer owns one or more Vehicles.
 - No Customer timezone on register or profile. Offset travels with `scheduledAt`.
 - Staff may search the Customer directory (`q` on contact or Vehicle Number / make / model) and list that Customer’s Vehicles. That is how Staff obtain ids for `POST /appointments`. Logs still mask contact.
-- Staff may `POST /customers` (email + password, role always Customer) and `POST /customers/{id}/vehicles`. Then Staff `POST /appointments` with those ids at **home Dealership only**.
+- Staff may `POST /customers` (email, optional `name`, password; role always Customer) and `POST /customers/{id}/vehicles`. Then Staff `POST /appointments` with those ids at **home Dealership only**.

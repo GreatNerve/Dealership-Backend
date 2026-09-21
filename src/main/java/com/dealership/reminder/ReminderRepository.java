@@ -213,6 +213,7 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
                    a.scheduled_at,
                    a.display_offset,
                    d.name AS dealership_name,
+                   u.name AS customer_name,
                    v.make AS vehicle_make,
                    v.model AS vehicle_model,
                    v.year AS vehicle_year,
@@ -223,6 +224,7 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
             FROM reminders r
             JOIN appointments a ON a.id = r.appointment_id
             JOIN customers c ON c.id = a.customer_id
+            JOIN users u ON u.id = c.user_id
             JOIN dealerships d ON d.id = a.dealership_id
             JOIN vehicles v ON v.id = a.vehicle_id
             WHERE r.id = :id
@@ -237,6 +239,7 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
                     rs.getTimestamp("scheduled_at").toInstant(),
                     rs.getString("display_offset"),
                     rs.getString("dealership_name"),
+                    rs.getString("customer_name"),
                     rs.getString("vehicle_make"),
                     rs.getString("vehicle_model"),
                     rs.getObject("vehicle_year", Integer.class),
@@ -344,6 +347,7 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
       Instant scheduledAt,
       String displayOffset,
       String dealershipName,
+      String customerName,
       String vehicleMake,
       String vehicleModel,
       Integer vehicleYear,

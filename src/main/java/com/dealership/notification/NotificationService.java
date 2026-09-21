@@ -37,6 +37,7 @@ public class NotificationService {
             facts.scheduledAt(),
             facts.displayOffset(),
             facts.dealershipName(),
+            facts.customerName(),
             facts.vehicleMake(),
             facts.vehicleModel(),
             facts.vehicleYear(),

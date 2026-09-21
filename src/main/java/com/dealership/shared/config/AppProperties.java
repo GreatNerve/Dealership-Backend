@@ -86,8 +86,7 @@ public class AppProperties {
   }
 
   public static class Cors {
-    private List<String> origins =
-        List.of("https://dealership.greatnerve.com", "http://localhost:8080");
+    private List<String> origins = List.of("*");
 
     public List<String> getOrigins() {
       return origins;
@@ -112,7 +111,7 @@ public class AppProperties {
 
   public static class Jwt {
     private String secret = "local-dev-only-change-me-32bytes-min!!";
-    private Duration ttl = Duration.ofDays(1);
+    private Duration ttl = Duration.ofDays(7);
 
     public String getSecret() {
       return secret;

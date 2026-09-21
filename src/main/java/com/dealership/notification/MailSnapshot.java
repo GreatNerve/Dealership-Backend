@@ -12,6 +12,7 @@ public record MailSnapshot(
     Instant scheduledAt,
     String displayOffset,
     String dealershipName,
+    String customerName,
     String vehicleMake,
     String vehicleModel,
     Integer vehicleYear,

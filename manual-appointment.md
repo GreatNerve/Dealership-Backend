@@ -1,14 +1,15 @@
 # Manual Appointment test (curl)
 
-JUnit under `src/test/java` is the suite. This file is a **localhost** flow: login, Vehicle, Appointment, then the 24h and 2h Reminders.
+JUnit under `src/test/java` is the suite. This file is the curl flow: login, Vehicle, Appointment, then the 24h and 2h Reminders.
 
-One-shot (Git Bash / macOS / Linux), app already on 8080:
+Pass the API URL (local or prod). Offset is optional (`24h`, `2h`, or both).
 
 ```bash
 make run
-bash scripts/test-appointment.sh        # both Reminders
-bash scripts/test-appointment.sh 24h
-bash scripts/test-appointment.sh 2h
+bash scripts/test-appointment.sh http://localhost:8080
+bash scripts/test-appointment.sh https://dealership.greatnerve.com
+bash scripts/test-appointment.sh http://localhost:8080 24h
+bash scripts/test-appointment.sh https://dealership.greatnerve.com 2h
 ```
 
 `notify: false` appends `logs/notifications.log` (ids + wall time, no contact). The poller is already running; do **not** wait 24 real hours.
@@ -22,7 +23,7 @@ Two bookings, because one visit time cannot fire both offsets immediately:
 
 24h log line uses `offset=1d`. 2h uses `offset=2h`.
 
-Login, register, and every other route are **15 requests / 60 seconds** per endpoint. A reviewer can click Swagger without a 15-minute lockout. Reuse `TOKEN` (1 day) so you do not spend login tokens.
+Login, register, and every other route are **15 requests / 60 seconds** per endpoint. A reviewer can click Swagger without a 15-minute lockout. Reuse `TOKEN` (7 days) so you do not spend login tokens.
 
 Needs `curl` and `python` (JSON + ISO times). Envelope is `{ success, data, ... }`; the token is `data.access_token`.
 
@@ -145,4 +146,4 @@ Expect `offset=2h`.
 
 ## 429
 
-Every endpoint is **15 / 60 seconds** (login, register, Vehicle, Appointment — each its own bucket). `Retry-After` is at most ~60s. Reuse `TOKEN` (1 day).
+Every endpoint is **15 / 60 seconds** (login, register, Vehicle, Appointment — each its own bucket). `Retry-After` is at most ~60s. Reuse `TOKEN` (7 days).

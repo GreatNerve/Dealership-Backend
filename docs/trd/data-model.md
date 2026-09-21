@@ -4,7 +4,7 @@ All tables: `id uuid PK`, `created_at`, `updated_at` timestamptz.
 
 | Table | Notes |
 | --- | --- |
-| `users` | email unique **lowercase**, BCrypt hash, `user_role` |
+| `users` | email unique **lowercase**, optional `name`, BCrypt hash, `user_role` |
 | `dealerships` | name, timezone, address |
 | `dealership_staff` | `user_id` unique, `dealership_id` |
 | `customers` | `user_id` unique, contact |

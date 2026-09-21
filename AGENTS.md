@@ -27,8 +27,8 @@ Ignore [no-push/](no-push/) except the assignment PDF.
 - Reminder offsets, no-show grace, JWT, workers, pagination, rate limits, mail, and the one-Confirmed-per-Vehicle cap come from **config/env**, not Java literals. Closed statuses/roles/`ApiErrorCode` are PostgreSQL + Java enums, not `varchar`. Reminder offsets are a Duration list stored as `offset_minutes`.
 - Format Java with Spotless (`./mvnw spotless:apply`).
 - Shop-floor In Progress/Completed is later.
-- JWT access token 1 day. Idempotency-Key TTL 24h. Expired `idempotency_keys` purged at UTC midnight. Notification `idempotency_key` is not TTL-purged.
-- Do not log raw contact or full **Vehicle Number**. Default Notification Mode is stub. `notify: false` appends `logs/notifications.log` (ids + wall time); `notify: true` uses stub or SMTP.
+- JWT access token 7 days. CORS allows all origins (`APP_CORS_ORIGINS=*`). Idempotency-Key TTL 24h. Expired `idempotency_keys` purged at UTC midnight. Notification `idempotency_key` is not TTL-purged.
+- Do not log raw contact, User name, or full **Vehicle Number**. Default Notification Mode is stub. `notify: false` appends `logs/notifications.log` (ids + wall time); `notify: true` uses stub or SMTP.
 - Store `scheduled_at` UTC and `display_offset` from `scheduledAt`. No Customer timezone field. Mail = Booking Offset. Staff GET = Dealership Timezone. JVM UTC (EC2 region irrelevant).
 - Clock math is PostgreSQL (set-based `interval`, claim `WHERE`, no-show `UPDATE`). Do not load full graphs to subtract hours. Outbox carries a lean snapshot for mail.
 - Comments in Java: only non-obvious why. Swagger via springdoc 2.8.x (Boot 3), not 3.x. Authorize is OAuth2 password (username = email) like FastAPI, not paste-only Bearer.

@@ -8,7 +8,7 @@ Statuses: PostgreSQL `reminder_status` enum (`PENDING`, `PROCESSING`, `RETRY_SCH
 
 Staff read: `GET /appointments/{id}/reminders` (home Dealership). Do not expose a public Reminder list. Join Notification on `reminder_id` for the current schedule version; if no join, still return `notification.status = NOT_SCHEDULED`. Return stored `offset_minutes` and `reminders.scheduled_at` as `dueAt` (UTC Instant only). Do not format a second local datetime. Do not recompute offset subtraction in Java.
 
-Do **not** load Appointments/Reminders into Java to subtract hours, expire windows, or no-show. Set-based SQL only. The worker loads a **lean projection** (ids, `scheduled_at`, `display_offset`, dealership name, contact for SMTP, `notify`) after claim — not the full entity graph.
+Do **not** load Appointments/Reminders into Java to subtract hours, expire windows, or no-show. Set-based SQL only. The worker loads a **lean projection** (ids, `scheduled_at`, `display_offset`, dealership name, optional customer name, contact for SMTP, `notify`) after claim — not the full entity graph.
 
 `ReminderScheduler` (`@Scheduled`) calls `ReminderService.pollDue`. Claim SQL lives on `ReminderRepository` (`JdbcTemplate`, not JPA): `FOR UPDATE SKIP LOCKED`, lease **30s** (configurable) in the **same claim transaction**. Send-window and Confirmed checks live in that `WHERE` so ineligible rows never enter the JVM. Heartbeat renews the lease during SMTP. SMTP timeout < lease. I/O outside the claim transaction. After claim, write `outbox_events` with a **snapshot payload** from the same JOIN (so the consumer does not reload Appointment + Customer + Vehicle). Not at Appointment create, not for far-future Reminders.
 

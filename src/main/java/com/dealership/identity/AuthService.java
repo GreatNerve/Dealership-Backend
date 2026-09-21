@@ -44,22 +44,24 @@ public class AuthService {
 
   @Transactional
   public AuthDtos.UserResponse register(AuthDtos.RegisterRequest request) {
-    return createUser(request.email(), request.password(), request.role());
+    return createUser(request.email(), request.name(), request.password(), request.role());
   }
 
   @Transactional
-  public UUID createCustomer(String email, String password) {
-    var user = createUser(email, password, Role.CUSTOMER);
+  public UUID createCustomer(String email, String name, String password) {
+    var user = createUser(email, name, password, Role.CUSTOMER);
     return customers.findByUserId(user.id()).orElseThrow(ApiException::notFound).getId();
   }
 
-  private AuthDtos.UserResponse createUser(String rawEmail, String password, Role role) {
+  private AuthDtos.UserResponse createUser(
+      String rawEmail, String rawName, String password, Role role) {
     String email = Inputs.email(rawEmail);
     if (users.existsByEmail(email)) {
       throw ApiException.of(ApiErrorCode.EMAIL_TAKEN, "Email already registered");
     }
     UserEntity user = new UserEntity();
     user.setEmail(email);
+    user.setName(blankToNull(rawName));
     user.setPasswordHash(passwords.encode(Inputs.sanitize(password)));
     user.setRole(role);
     users.save(user);
@@ -99,6 +101,7 @@ public class AuthService {
       return new AuthDtos.UserResponse(
           user.getId(),
           user.getEmail(),
+          user.getName(),
           user.getRole(),
           null,
           customer != null ? customer.getId() : null,
@@ -113,6 +116,11 @@ public class AuthService {
             .map(DealershipDtos.DealershipResponse::from)
             .orElse(null);
     return new AuthDtos.UserResponse(
-        user.getId(), user.getEmail(), user.getRole(), homeId, null, home, null);
+        user.getId(), user.getEmail(), user.getName(), user.getRole(), homeId, null, home, null);
+  }
+
+  private static String blankToNull(String raw) {
+    String cleaned = Inputs.sanitize(raw);
+    return cleaned == null || cleaned.isEmpty() ? null : cleaned;
   }
 }

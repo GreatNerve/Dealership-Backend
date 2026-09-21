@@ -15,6 +15,7 @@ public final class AuthDtos {
 
   public record RegisterRequest(
       @NotBlank @Email @Size(max = 320) String email,
+      @Size(max = 100) String name,
       @NotBlank @Size(min = 8, max = 100) String password,
       @NotNull Role role) {}
 
@@ -30,6 +31,7 @@ public final class AuthDtos {
   public record UserResponse(
       UUID id,
       String email,
+      String name,
       Role role,
       UUID homeDealershipId,
       UUID customerId,

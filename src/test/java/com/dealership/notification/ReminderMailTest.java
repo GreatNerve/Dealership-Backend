@@ -26,6 +26,14 @@ class ReminderMailTest {
     assertFalse(mail.text().contains("2-hour"));
     assertFalse(mail.subject().contains("24-hour"));
     assertFalse(mail.html().contains("2-hour reminder"));
+    assertFalse(mail.text().startsWith("Hi "));
+  }
+
+  @Test
+  void greetingWhenNamePresent() {
+    ReminderMail mail = ReminderMail.of(snapshot(1440, "North Shop", "Dheeraj"));
+    assertTrue(mail.text().startsWith("Hi Dheeraj,"));
+    assertTrue(mail.html().contains("Hi Dheeraj,"));
   }
 
   @Test
@@ -42,6 +50,10 @@ class ReminderMailTest {
   }
 
   private static MailSnapshot snapshot(int offsetMinutes, String shop) {
+    return snapshot(offsetMinutes, shop, null);
+  }
+
+  private static MailSnapshot snapshot(int offsetMinutes, String shop, String customerName) {
     return new MailSnapshot(
         UUID.randomUUID(),
         UUID.randomUUID(),
@@ -50,6 +62,7 @@ class ReminderMailTest {
         Instant.parse("2026-09-22T16:30:00Z"),
         "+05:30",
         shop,
+        customerName,
         "Honda",
         "Civic",
         2022,

@@ -41,7 +41,7 @@ public class AuthController {
 
   @PostMapping(path = "/auth/login", consumes = MediaType.APPLICATION_JSON_VALUE)
   @SecurityRequirements
-  @Operation(summary = "Login and receive a 1-day JWT")
+  @Operation(summary = "Login and receive a JWT")
   public AuthDtos.TokenResponse login(@Valid @RequestBody AuthDtos.LoginRequest request) {
     return authService.login(request);
   }

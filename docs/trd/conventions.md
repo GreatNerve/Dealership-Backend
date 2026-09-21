@@ -30,7 +30,9 @@ HTTP status still matches the error (400/401/403/404/409/429/503). 401 and 403 f
 
 **Loading / dependency failure:** list/get must not hang without a timeout. On DB/broker outage return `503` with `RETRYABLE`. Never return an empty `200` that looks like “no rows” when the read failed.
 
-**Auth:** Bearer JWT unless `dev` profile skips it. Access token **1 day**. Swagger Authorize uses OAuth2 password (username = email) against `POST /auth/login`; see [openapi.md](openapi.md).
+**Auth:** Bearer JWT unless `dev` profile skips it. Access token **7 days** (`APP_JWT_TTL`). Swagger Authorize uses OAuth2 password (username = email) against `POST /auth/login`; see [openapi.md](openapi.md).
+
+**CORS:** all origins (`APP_CORS_ORIGINS=*`). Restrict later by listing hosts.
 
 **Inputs:** JSON, query, form, and header strings go through `Inputs` (trim, strip ISO control / format / private-use / surrogate). Emails then lowercase. Bean Validation on request records (`@NotBlank`, `@Email`, `@Size`, `@Min`/`@Max`). Failures are `400 VALIDATION_ERROR` (same error JSON). Invalid IANA timezone is `400 INVALID_TIMEZONE`. Oversized `q` is `400 INVALID_Q`. See [code-style.md](code-style.md).
 

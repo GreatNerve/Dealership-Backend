@@ -14,7 +14,7 @@ help:
 	@echo "stop       kill whatever is listening on PORT (default 8080)"
 	@echo "up         full stack docker compose"
 	@echo "down       docker compose down"
-	@echo "appointment  localhost 24h + 2h Appointment (scripts/test-appointment.sh)"
+	@echo "appointment  24h + 2h Appointment vs URL (scripts/test-appointment.sh)"
 	@echo "precommit  what the hook runs"
 
 hooks:
@@ -66,4 +66,4 @@ down:
 	docker compose down
 
 appointment:
-	bash scripts/test-appointment.sh
+	bash scripts/test-appointment.sh http://localhost:8080

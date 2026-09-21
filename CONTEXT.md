@@ -23,7 +23,7 @@ A logged-in person whose home **Dealership** is the only **Venue** they may book
 _Avoid_: Employee, advisor, admin (no extra staff roles in v1)
 
 **User**:
-A login identity. A **User** is either a **Customer** or a **Staff Member**, not both in v1.
+A login identity. A **User** is either a **Customer** or a **Staff Member**, not both in v1. Optional **name** (mail greeting when present).
 _Avoid_: Account, principal
 
 ### Assets and bookings

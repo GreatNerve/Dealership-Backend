@@ -6,4 +6,4 @@ Metrics: created, sent, retries, dead-letter, lateness (`processed_at - schedule
 
 Health: Actuator liveness vs readiness (DB and broker).
 
-Config env (see `.env.example`, one section per type): App, JWT, Postgres, Redis, RabbitMQ, Mail / Notification (`APP_NOTIFICATIONS_MODE`, `SPRING_MAIL_*`; SMTP key never in git), Appointment, Reminder, Workers, Idempotency, Pagination, Rate limit. No secrets or durations live only in Java.
+Config env (see `.env.example`, one section per type): App (`APP_CORS_ORIGINS=*`), JWT, Postgres, Redis, RabbitMQ, Mail / Notification (`APP_NOTIFICATIONS_MODE`, `SPRING_MAIL_*`; SMTP key never in git), Appointment, Reminder, Workers, Idempotency, Pagination, Rate limit. No secrets or durations live only in Java.

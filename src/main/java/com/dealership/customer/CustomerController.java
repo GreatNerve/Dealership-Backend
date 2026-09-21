@@ -60,6 +60,7 @@ public class CustomerController {
 
   public record CreateCustomerRequest(
       @NotBlank @Email @Size(max = 320) String email,
+      @Size(max = 100) String name,
       @NotBlank @Size(min = 8, max = 100) String password) {}
 
   @PostMapping
@@ -67,7 +68,7 @@ public class CustomerController {
   @Operation(summary = "Create a walk-in Customer (Staff)")
   public CustomerResponse create(@Valid @RequestBody CreateCustomerRequest request) {
     requireStaff();
-    UUID customerId = auth.createCustomer(request.email(), request.password());
+    UUID customerId = auth.createCustomer(request.email(), request.name(), request.password());
     return get(customerId);
   }
 

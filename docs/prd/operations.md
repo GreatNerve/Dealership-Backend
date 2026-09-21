@@ -12,10 +12,11 @@
 8. As a caller, I want list GET endpoints paginated (`page`, `size`, default **100**) and searchable (`q`), so that large shops do not dump every row.
 9. As a Customer, I want Reminder mail to show the local time I booked (`10:00 PM`), not UTC and not the EC2 clock.
 10. As an operator, I want the public API at `https://dealership.greatnerve.com`.
+11. As a browser client, I want CORS to allow **any origin** (`APP_CORS_ORIGINS=*`), so a local or hosted UI can call the API without a whitelist.
 
 ## Video success
 
-1. Create an Appointment (`bash scripts/test-appointment.sh`, [manual curl](../../manual-appointment.md), or Swagger).
+1. Create an Appointment (`bash scripts/test-appointment.sh <url>`, [manual curl](../../manual-appointment.md), or Swagger).
 2. Show logs: create, Reminder rows, send (stub, `logs/notifications.log` when `notify: false`, or Brevo when `smtp`).
 3. Show database rows for Appointment and Reminders/Notifications.
 4. Optionally: same Idempotency-Key replay; second Vehicle; 409 on same Vehicle.

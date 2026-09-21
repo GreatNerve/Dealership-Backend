@@ -6,6 +6,7 @@ public record ReminderMail(String subject, String text, String html) {
 
   public static ReminderMail of(MailSnapshot snapshot) {
     String shop = snapshot.dealershipName() == null ? "the dealership" : snapshot.dealershipName();
+    String hello = greeting(snapshot);
     String localDate =
         BookingTimes.formatMailDate(snapshot.scheduledAt(), snapshot.displayOffset());
     String localClock =
@@ -13,7 +14,8 @@ public record ReminderMail(String subject, String text, String html) {
     String vehicle = vehicleLine(snapshot);
     String subject = "Service appointment — " + shop;
     String text =
-        shop
+        (hello.isEmpty() ? "" : hello + "\n\n")
+            + shop
             + "\n\nVehicle: "
             + vehicle
             + "\n"
@@ -21,6 +23,17 @@ public record ReminderMail(String subject, String text, String html) {
             + "\n"
             + localDate
             + "\n\nPlease arrive a few minutes early.\n";
+    String greetingHtml =
+        hello.isEmpty()
+            ? ""
+            : """
+          <tr>
+            <td style="padding:28px 32px 0;font-size:16px;line-height:1.55;color:#44403c;">
+              %s
+            </td>
+          </tr>
+"""
+                .formatted(esc(hello));
     String html =
         """
 <!DOCTYPE html>
@@ -41,6 +54,7 @@ public record ReminderMail(String subject, String text, String html) {
               <h1 style="margin:10px 0 0;font-size:26px;font-weight:normal;color:#fffaf3;">%s</h1>
             </td>
           </tr>
+          %s
           <tr>
             <td style="padding:28px 32px 12px;font-size:16px;line-height:1.55;color:#44403c;">
               Vehicle: <strong style="color:#1c1917;">%s</strong>
@@ -63,8 +77,22 @@ public record ReminderMail(String subject, String text, String html) {
 </body>
 </html>
 """
-            .formatted(esc(subject), esc(shop), esc(vehicle), esc(localClock), esc(localDate));
+            .formatted(
+                esc(subject),
+                esc(shop),
+                greetingHtml,
+                esc(vehicle),
+                esc(localClock),
+                esc(localDate));
     return new ReminderMail(subject, text, html);
+  }
+
+  static String greeting(MailSnapshot snapshot) {
+    String name = snapshot.customerName();
+    if (name == null || name.isBlank()) {
+      return "";
+    }
+    return "Hi " + name.trim() + ",";
   }
 
   static String vehicleLine(MailSnapshot snapshot) {

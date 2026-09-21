@@ -89,12 +89,12 @@ app:
   public-host: ${APP_PUBLIC_HOST:https://dealership.greatnerve.com}
   local-host: ${APP_LOCAL_HOST:http://localhost:8080}
   cors:
-    origins: ${APP_CORS_ORIGINS:https://dealership.greatnerve.com,http://localhost:8080}
+    origins: "${APP_CORS_ORIGINS:*}"
   security:
     jwt-required: true
   jwt:
     secret: ${APP_JWT_SECRET:local-dev-only-change-me-32bytes-min!!}
-    ttl: ${APP_JWT_TTL:1d}
+    ttl: ${APP_JWT_TTL:7d}
   appointments:
     one-confirmed-per-vehicle: ${APP_ONE_CONFIRMED_PER_VEHICLE:true}
   reminders:

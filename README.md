@@ -54,15 +54,16 @@ Demo login (`dev` profile): `staff@demo.local` / `password` and `customer@demo.l
 
 ## Try an Appointment (24h and 2h Reminders)
 
-App on 8080, then:
+Pass the API URL. Default is both offsets. `24h` / `2h` as a second argument.
 
 ```bash
-bash scripts/test-appointment.sh        # both
-bash scripts/test-appointment.sh 24h
-bash scripts/test-appointment.sh 2h
+bash scripts/test-appointment.sh http://localhost:8080
+bash scripts/test-appointment.sh https://dealership.greatnerve.com
+bash scripts/test-appointment.sh http://localhost:8080 24h
+bash scripts/test-appointment.sh https://dealership.greatnerve.com 2h
 ```
 
-Curl-only steps: [manual-appointment.md](manual-appointment.md). `notify: false` writes `logs/notifications.log`. Book ~20h out to fire the 24h Reminder now; ~100 minutes out to fire the 2h Reminder. Rate limit is **15 / 60s per endpoint** (never a 15-minute wait).
+Curl-only steps: [manual-appointment.md](manual-appointment.md). `notify: false` writes `logs/notifications.log` locally (prod log stays on the server). Book ~20h out to fire the 24h Reminder now; ~100 minutes out to fire the 2h Reminder. Rate limit is **15 / 60s per endpoint** (never a 15-minute wait).
 
 Default Notification Mode is **stub**. Set `APP_NOTIFICATIONS_MODE=smtp` to send through **Brevo** (host/login/key in `.env`).
 
