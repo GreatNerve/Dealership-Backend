@@ -20,3 +20,5 @@ One Spring Boot service:
 2. Make failure modes explicit: retries, leases, dead-letter, replay, no-show expiry.
 3. Signal production thinking (JWT, RabbitMQ outbox, Redis rate limits, Swagger, Docker) without microservices.
 4. Stay defendable line-by-line in review.
+
+**Scale:** the PDF is 50,000 Appointments/day across 500 Dealerships. We size **10× = 500,000/day** as headroom for “what if it is busier,” not because we measured 500k, and not by multiplying the poll by 10. Hikari / Tomcat / Claim Batch follow **this process’s CPU count** so the laptop, Docker, and a later EC2 box are not stuck with one guessed yaml. Why those formulas: [../decision/scale.md](../decision/scale.md).

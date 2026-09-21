@@ -40,6 +40,6 @@ Create errors: `400` (Bean Validation `VALIDATION_ERROR`, `scheduledAt` already 
 
 One DB transaction on create: Appointment row + Reminder rows via SQL `INSERT … SELECT` (`scheduled_at - CAST(:offset AS interval)`) + idempotency row. **No outbox or Notification rows at create.** Do not compute due times in Java.
 
-When a Reminder is due, `ReminderScheduler` ticks `ReminderService`, which claims via `ReminderRepository` (SKIP LOCKED + lease, send-window in SQL), then `NotificationService` writes a **lean outbox snapshot** (JPA); `OutboxPublisher` SKIP LOCKED-claims and pushes to RabbitMQ; `MailWorker` sends from that payload.
+When a Reminder is due, `ReminderScheduler` ticks `ReminderService`, which claims a **Claim Batch** via `ReminderRepository` (SKIP LOCKED + lease, send-window in SQL), then `NotificationService` writes a **lean outbox snapshot** (JPA); `OutboxPublisher` SKIP LOCKED-claims the same batch size and pushes to RabbitMQ; `MailWorker` sends from that payload.
 
 Partial unique: `UNIQUE (vehicle_id) WHERE status = 'CONFIRMED' AND one_confirmed`. Create sets `one_confirmed` from `APP_ONE_CONFIRMED_PER_VEHICLE` (default `true`). `false` stores `one_confirmed=false` so the index does not apply.

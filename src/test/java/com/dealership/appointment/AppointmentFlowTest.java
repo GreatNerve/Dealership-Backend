@@ -272,7 +272,7 @@ class AppointmentFlowTest extends AbstractIT {
         WHERE id = ?
         """,
         reminderId);
-    assertFalse(reminderRows.markSent(reminderId));
+    assertFalse(reminderRows.markSent(reminderId, "mail-test"));
   }
 
   @Test
@@ -377,6 +377,113 @@ class AppointmentFlowTest extends AbstractIT {
             String.class);
     assertEquals(HttpStatus.CONFLICT, replay.getStatusCode());
     assertTrue(replay.getBody().contains("REPLAY_NOT_DEAD_LETTER"));
+  }
+
+  @Test
+  void replayDeadLetterSendsOnceWithSameKey() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    UUID reminderId =
+        jdbc.queryForObject(
+            """
+            SELECT id FROM reminders
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            UUID.class,
+            appointmentId);
+    jdbc.update(
+        "UPDATE reminders SET status = CAST('DEAD_LETTER' AS reminder_status) WHERE id = ?",
+        reminderId);
+    UUID notificationId = UUID.randomUUID();
+    String key = appointmentId + ":1440:1";
+    jdbc.update(
+        """
+        INSERT INTO notifications (
+          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
+          attempts, last_error, created_at, updated_at)
+        VALUES (?, ?, ?, 1440, ?, CAST('DEAD_LETTER' AS notification_status), 5, 'smtp failed',
+          now(), now())
+        """,
+        notificationId,
+        reminderId,
+        appointmentId,
+        key);
+    ResponseEntity<String> replay =
+        http.exchange(
+            "/api/v1/notifications/" + notificationId + "/replay",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(staffToken)),
+            String.class);
+    assertEquals(HttpStatus.ACCEPTED, replay.getStatusCode());
+    publisher.drain();
+    long deadline = System.currentTimeMillis() + 5000;
+    long stubSends = 0;
+    while (System.currentTimeMillis() < deadline) {
+      stubSends =
+          stub.recorded().stream()
+              .filter(
+                  s -> s.appointmentId().equals(appointmentId) && key.equals(s.idempotencyKey()))
+              .count();
+      if (stubSends >= 1) {
+        break;
+      }
+      try {
+        Thread.sleep(50);
+      } catch (InterruptedException ex) {
+        Thread.currentThread().interrupt();
+        break;
+      }
+    }
+    assertEquals(1, stubSends);
+    assertEquals(
+        Integer.valueOf(1),
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM notifications
+            WHERE id = ? AND status = 'SENT' AND idempotency_key = ?
+            """,
+            Integer.class,
+            notificationId,
+            key));
+    assertEquals(
+        "SENT",
+        jdbc.queryForObject(
+            "SELECT status::text FROM reminders WHERE id = ?", String.class, reminderId));
+  }
+
+  @Test
+  void staffWithoutHomeShopCannotListCustomers() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    ResponseEntity<String> listed =
+        http.exchange(
+            "/api/v1/customers",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            String.class);
+    assertEquals(HttpStatus.NOT_FOUND, listed.getStatusCode());
   }
 
   @Test
@@ -636,6 +743,72 @@ class AppointmentFlowTest extends AbstractIT {
   }
 
   @Test
+  void onePollClaimsABatchOfDueReminders() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    UUID first =
+        book(customerToken, createVehicle(customerToken, randomPlate("TN")), dealershipId, when);
+    UUID second =
+        book(
+            customerToken,
+            createVehicle(customerToken, randomPlate("MH")),
+            dealershipId,
+            when.plusHours(1));
+    jdbc.update(
+        """
+        UPDATE reminders SET scheduled_at = now() - interval '1 minute'
+        WHERE offset_minutes = 120 AND appointment_id IN (?, ?)
+        """,
+        first,
+        second);
+
+    poller.tick();
+    Integer claimed =
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM reminders
+            WHERE offset_minutes = 120 AND appointment_id IN (?, ?) AND status = 'PROCESSING'
+            """,
+            Integer.class,
+            first,
+            second);
+    assertEquals(2, claimed);
+    Integer outbox =
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM outbox_events WHERE aggregate_id IN (
+              SELECT id FROM reminders WHERE offset_minutes = 120 AND appointment_id IN (?, ?))
+            """,
+            Integer.class,
+            first,
+            second);
+    assertEquals(2, outbox);
+  }
+
+  private UUID book(String token, UUID vehicleId, UUID dealershipId, OffsetDateTime when) {
+    HttpHeaders headers = bearer(token);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    return http.exchange(
+            "/api/v1/appointments",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                """
+                    .formatted(vehicleId, dealershipId, when),
+                headers),
+            AppointmentDtos.AppointmentResponse.class)
+        .getBody()
+        .id();
+  }
+
+  @Test
   void concurrentClaimsSendOnce() throws Exception {
     String staffToken =
         registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
@@ -644,7 +817,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID vehicleId = createVehicle(customerToken, randomPlate("TN"));
     OffsetDateTime when =
         OffsetDateTime.now(ZoneOffset.UTC)
-            .plusHours(3)
+            .plusDays(3)
             .withOffsetSameInstant(ZoneOffset.of("+05:30"));
     String body =
         """
@@ -663,7 +836,15 @@ class AppointmentFlowTest extends AbstractIT {
             .id();
 
     jdbc.update(
-        "UPDATE reminders SET scheduled_at = now() - interval '1 minute' WHERE appointment_id = ?",
+        """
+        UPDATE reminders
+        SET scheduled_at = now() - interval '1 minute',
+            status = CAST('PENDING' AS reminder_status),
+            locked_by = NULL,
+            lease_expires_at = NULL,
+            next_attempt_at = NULL
+        WHERE appointment_id = ? AND offset_minutes = 1440
+        """,
         appointmentId);
 
     Thread t1 = new Thread(poller::tick);
@@ -672,24 +853,38 @@ class AppointmentFlowTest extends AbstractIT {
     t2.start();
     t1.join();
     t2.join();
-    Thread.sleep(2000);
+    poller.tick();
+    publisher.drain();
+    long deadline = System.currentTimeMillis() + 5000;
+    long stubSends = 0;
+    Integer outbox = 0;
+    while (System.currentTimeMillis() < deadline) {
+      outbox =
+          jdbc.queryForObject(
+              "SELECT count(*) FROM outbox_events WHERE aggregate_id IN (SELECT id FROM reminders"
+                  + " WHERE appointment_id = ? AND offset_minutes = 1440)",
+              Integer.class,
+              appointmentId);
+      stubSends =
+          stub.recorded().stream().filter(s -> s.appointmentId().equals(appointmentId)).count();
+      if (outbox != null && outbox >= 1 && stubSends >= 1) {
+        break;
+      }
+      publisher.drain();
+      Thread.sleep(50);
+    }
 
-    Integer outbox =
+    assertEquals(1, outbox);
+    assertEquals(1, stubSends);
+    assertEquals(
+        Integer.valueOf(1),
         jdbc.queryForObject(
-            "SELECT count(*) FROM outbox_events WHERE aggregate_id IN (SELECT id FROM reminders"
-                + " WHERE appointment_id = ?)",
+            """
+            SELECT count(*) FROM notifications
+            WHERE appointment_id = ? AND offset_minutes = 1440 AND status = 'SENT'
+            """,
             Integer.class,
-            appointmentId);
-    assertTrue(outbox >= 1);
-    long stubSends =
-        stub.recorded().stream().filter(s -> s.appointmentId().equals(appointmentId)).count();
-    assertTrue(stubSends <= 2);
-    Integer notifications =
-        jdbc.queryForObject(
-            "SELECT count(*) FROM notifications WHERE appointment_id = ?",
-            Integer.class,
-            appointmentId);
-    assertTrue(notifications <= 2);
+            appointmentId));
   }
 
   @Test

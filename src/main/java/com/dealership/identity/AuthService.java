@@ -13,6 +13,7 @@ import com.dealership.shared.security.AuthPrincipal;
 import com.dealership.shared.security.CurrentUser;
 import com.dealership.shared.security.JwtService;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +65,11 @@ public class AuthService {
     user.setName(blankToNull(rawName));
     user.setPasswordHash(passwords.encode(Inputs.sanitize(password)));
     user.setRole(role);
-    users.save(user);
+    try {
+      users.saveAndFlush(user);
+    } catch (DataIntegrityViolationException ex) {
+      throw ApiException.of(ApiErrorCode.EMAIL_TAKEN, "Email already registered");
+    }
     if (role == Role.CUSTOMER) {
       CustomerEntity customer = new CustomerEntity();
       customer.setUserId(user.getId());

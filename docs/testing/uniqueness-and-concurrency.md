@@ -10,8 +10,8 @@ Proof is not a comment. Proof is:
 
 ## Concurrent workers
 
-- Two threads/processes claim the same due Reminder.
-- Exactly one Notification send on the stub.
+- Two threads/processes claim the same due Reminder (a **Claim Batch** still uses `SKIP LOCKED` per row).
+- Exactly one Notification send on the stub for that Reminder Offset.
 - The other worker either skipped the locked row or no-op’d on the unique key.
 - Database: one `SENT` Notification for that key.
 

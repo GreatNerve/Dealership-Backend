@@ -10,11 +10,13 @@ services:
       - .env
     volumes:
       - ./logs:/app/logs
+    cpus: 4.0
+    mem_limit: 3584m
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dealership
       SPRING_DATA_REDIS_HOST: redis
       SPRING_RABBITMQ_HOST: rabbitmq
-      JAVA_TOOL_OPTIONS: -Duser.timezone=UTC
+      JAVA_TOOL_OPTIONS: -Duser.timezone=UTC -XX:MaxRAMPercentage=50.0
     depends_on:
       postgres:
         condition: service_healthy

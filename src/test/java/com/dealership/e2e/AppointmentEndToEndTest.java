@@ -264,6 +264,61 @@ class AppointmentEndToEndTest extends AbstractIT {
     assertTrue(tooBig.getBody().contains("INVALID_SIZE"));
   }
 
+  @Test
+  void replayDeadLetterSendsOnceWithSameKey() {
+    Shop shop = open("Asia/Kolkata");
+    var created = createCustomerAppointment(shop, future(5, 30), true);
+    UUID reminderId =
+        jdbc.queryForObject(
+            """
+            SELECT id FROM reminders
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            UUID.class,
+            created.id());
+    jdbc.update(
+        "UPDATE reminders SET status = CAST('DEAD_LETTER' AS reminder_status) WHERE id = ?",
+        reminderId);
+    UUID notificationId = UUID.randomUUID();
+    String key = created.id() + ":1440:1";
+    jdbc.update(
+        """
+        INSERT INTO notifications (
+          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
+          attempts, last_error, created_at, updated_at)
+        VALUES (?, ?, ?, 1440, ?, CAST('DEAD_LETTER' AS notification_status), 5, 'smtp failed',
+          now(), now())
+        """,
+        notificationId,
+        reminderId,
+        created.id(),
+        key);
+    ResponseEntity<String> replay =
+        http.exchange(
+            "/api/v1/notifications/" + notificationId + "/replay",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(shop.staffToken())),
+            String.class);
+    assertEquals(HttpStatus.ACCEPTED, replay.getStatusCode());
+    publisher.drain();
+    assertTrue(waitForStub(created.id(), 1));
+    assertEquals(
+        1,
+        stub.recorded().stream()
+            .filter(s -> s.appointmentId().equals(created.id()) && key.equals(s.idempotencyKey()))
+            .count());
+    assertEquals(
+        Integer.valueOf(1),
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM notifications
+            WHERE id = ? AND status = 'SENT' AND idempotency_key = ?
+            """,
+            Integer.class,
+            notificationId,
+            key));
+  }
+
   private AppointmentDtos.AppointmentResponse createCustomerAppointment(
       Shop shop, OffsetDateTime when, boolean notify) {
     HttpHeaders headers = bearer(shop.customerToken());

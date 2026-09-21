@@ -39,10 +39,11 @@ These tests prove the **database is the ledger**.
 
 ## Leases (DB only)
 
-- Claim sets `PROCESSING` + `lease_expires_at`.
+- Claim sets `PROCESSING` + `lease_expires_at` for up to **Claim Batch** rows (auto from CPUs, floor 18) in one SQL.
 - Expired lease is claimable again (Reminders and outbox `PROCESSING`).
 - `markSent` on an expired lease is a no-op.
 - Two sequential claims of the same PENDING row: only one winner per claim SQL (concurrency layer does two threads).
+- One poll with both offsets due claims **both** (batch, not `LIMIT 1`).
 
 ## Transactions
 
@@ -52,7 +53,7 @@ These tests prove the **database is the ledger**.
 
 - After create, Staff `GET /appointments/{id}/reminders` returns one item per offset; `offsetMinutes` and `dueAt` match `reminders.offset_minutes` / `reminders.scheduled_at` (UTC Instant, no `dueAtLocal`); each `notification.status` is `NOT_SCHEDULED` and `id` is null while not due. Never omit `notification`.
 - After a successful send, nested Notification is `SENT` with `sentAt`.
-- After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id. Replay from another shop’s Staff is 404. Replay of `PENDING` / `RETRY_SCHEDULED` is `409 REPLAY_NOT_DEAD_LETTER`.
+- After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id. Replay from another shop’s Staff is 404. Replay of `PENDING` / `RETRY_SCHEDULED` is `409 REPLAY_NOT_DEAD_LETTER`. Successful replay: Reminder `PROCESSING` with a live lease, Notification `PENDING`, stub/SMTP called **once** with the same idempotency key, then both `SENT`.
 
 ## Identity login
 

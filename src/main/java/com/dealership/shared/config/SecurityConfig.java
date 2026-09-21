@@ -103,7 +103,9 @@ public class SecurityConfig {
             "X-RateLimit-Remaining",
             "X-RateLimit-Reset",
             "Retry-After"));
-    config.setAllowCredentials(true);
+    boolean wildcard =
+        properties.getCors().getOrigins().stream().anyMatch(origin -> origin.contains("*"));
+    config.setAllowCredentials(!wildcard);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", config);
     return source;

@@ -22,6 +22,7 @@ import com.dealership.shared.api.PageQueries;
 import com.dealership.shared.api.PageQuery;
 import com.dealership.shared.api.PageResponse;
 import com.dealership.shared.config.AppProperties;
+import com.dealership.shared.metrics.AppMetrics;
 import com.dealership.shared.security.AuthPrincipal;
 import com.dealership.shared.security.CurrentUser;
 import com.dealership.shared.time.BookingInstant;
@@ -62,6 +63,7 @@ public class AppointmentService {
   private final TimeProvider time;
   private final PageQueries pages;
   private final AppProperties properties;
+  private final AppMetrics metrics;
 
   public AppointmentService(
       AppointmentRepository appointments,
@@ -75,7 +77,8 @@ public class AppointmentService {
       IdempotencyService idempotency,
       TimeProvider time,
       PageQueries pages,
-      AppProperties properties) {
+      AppProperties properties,
+      AppMetrics metrics) {
     this.appointments = appointments;
     this.vehicles = vehicles;
     this.customers = customers;
@@ -88,6 +91,7 @@ public class AppointmentService {
     this.time = time;
     this.pages = pages;
     this.properties = properties;
+    this.metrics = metrics;
   }
 
   @Transactional
@@ -156,7 +160,7 @@ public class AppointmentService {
       AuthPrincipal user,
       IdempotencyKeyEntity idempotencyRow) {
     BookingInstant booking = BookingTimes.parseScheduledAt(scheduledAtRaw);
-    if (!booking.utc().isAfter(time.now())) {
+    if (AppointmentPolicies.scheduledAtIsPast(booking.utc(), time.now())) {
       throw ApiException.of(ApiErrorCode.SCHEDULED_AT_PAST, "scheduledAt must be in the future");
     }
     AppointmentEntity appointment = new AppointmentEntity();
@@ -178,6 +182,7 @@ public class AppointmentService {
           "This vehicle already has a confirmed appointment");
     }
     reminders.insertForAppointment(appointment.getId());
+    metrics.appointmentCreated();
     MDC.put("appointment_id", appointment.getId().toString());
     log.info("appointment created");
     MDC.remove("appointment_id");
@@ -213,7 +218,7 @@ public class AppointmentService {
           ApiErrorCode.NOT_CONFIRMED, "Only a Confirmed Appointment can be rescheduled");
     }
     BookingInstant booking = BookingTimes.parseScheduledAt(body.scheduledAt());
-    if (!booking.utc().isAfter(time.now())) {
+    if (AppointmentPolicies.scheduledAtIsPast(booking.utc(), time.now())) {
       throw ApiException.of(ApiErrorCode.SCHEDULED_AT_PAST, "scheduledAt must be in the future");
     }
     reminders.cancelUnsent(appointment.getId());

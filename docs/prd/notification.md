@@ -13,10 +13,10 @@
 
 - `NotificationSender` abstraction. Mode `stub` or `smtp` for `notify: true`. `notify: false` appends `APP_NOTIFICATIONS_LOG_DIR` (`logs/notifications.log`).
 - SMTP = **Brevo** (`APP_NOTIFICATIONS_MODE=smtp` + `SPRING_MAIL_*` in `.env`). No Mailhog in the default deps stack.
-- 2–4 mail workers (default 2), prefetch 1 each, 30s lease with heartbeat (slow SMTP must not double-send).
+- 2–4 mail workers (default 2), prefetch 1 each, 30s lease with heartbeat (slow SMTP must not double-send — more workers than 4 do not make Brevo faster). Outbox drain uses the same **Claim Batch** as Reminder claim (`APP_WORKERS_CLAIM_BATCH=0` auto from CPUs) so publish does not lag claim.
 - Notification/outbox only when the Reminder is due.
-- SMTP failures (auth, timeout, 5xx) retry the same Notification key, exponential backoff + jitter (**30s**, then **60s / 2 min / 4 min**, cap **5 minutes**), max **5** attempts, then `DEAD_LETTER`. Invalid contact is permanent (no retry).
-- Replay is Staff, home Dealership of that Appointment, else 404. Dead-letter only (`409 REPLAY_NOT_DEAD_LETTER` otherwise). Same notification idempotency key.
+- SMTP failures (timeout, 5xx) retry the same Notification key, exponential backoff + jitter (**30s**, then **60s / 2 min / 4 min**, cap **5 minutes**), max **5** attempts, then `DEAD_LETTER`. SMTP auth and invalid contact are permanent (no retry).
+- Replay is Staff, home Dealership of that Appointment, else 404. Dead-letter only (`409 REPLAY_NOT_DEAD_LETTER` otherwise). Same notification idempotency key. Replay reopens the Reminder to `PROCESSING` with a live lease and the Notification to `PENDING` so mail actually sends.
 - Reminder = schedule. Notification = delivery. Do not collapse them.
 - Staff mail status is `GET /appointments/{id}/reminders` (home Dealership, else 404). Not a shop-wide Notification list in v1. Not on Appointment list GET. Customer does not see `lastError`.
 - Every Reminder item **always** includes a `notification` object. A Notification **row** exists only after the Reminder is due. Until then status is **Not Scheduled** (`NOT_SCHEDULED`), `id` is null — not a send failure, not JSON `null`.

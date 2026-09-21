@@ -1,5 +1,6 @@
 package com.dealership.customer;
 
+import com.dealership.dealership.DealershipStaffRepository;
 import com.dealership.identity.AuthService;
 import com.dealership.identity.Role;
 import com.dealership.identity.UserEntity;
@@ -45,6 +46,7 @@ public class CustomerController {
   private final VehicleRepository vehicles;
   private final VehicleService vehicleService;
   private final AuthService auth;
+  private final DealershipStaffRepository staff;
   private final PageQueries pages;
 
   public CustomerController(
@@ -53,12 +55,14 @@ public class CustomerController {
       VehicleRepository vehicles,
       VehicleService vehicleService,
       AuthService auth,
+      DealershipStaffRepository staff,
       PageQueries pages) {
     this.customers = customers;
     this.users = users;
     this.vehicles = vehicles;
     this.vehicleService = vehicleService;
     this.auth = auth;
+    this.staff = staff;
     this.pages = pages;
   }
 
@@ -162,9 +166,11 @@ public class CustomerController {
     return names;
   }
 
-  private static void requireStaff() {
-    if (CurrentUser.require().role() != Role.DEALERSHIP_STAFF) {
+  private void requireStaff() {
+    var user = CurrentUser.require();
+    if (user.role() != Role.DEALERSHIP_STAFF) {
       throw ApiException.forbidden("Only staff can manage the Customer directory");
     }
+    staff.findByUserId(user.userId()).orElseThrow(ApiException::notFound);
   }
 }

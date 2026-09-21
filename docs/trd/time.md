@@ -126,7 +126,7 @@ The application layer does not load every due row, compute times, and write back
 | Skip already-past windows | `CASE … EXPIRED` in that INSERT, not a Java loop |
 | Close send window | `UPDATE reminders SET status = 'EXPIRED' WHERE …` (bounded, indexed) |
 | No-show | one `UPDATE appointments … WHERE CONFIRMED AND now() >= scheduled_at + interval '1 hour'` |
-| Claim | `SKIP LOCKED` `LIMIT 1` (or small batch). Send-window + Confirmed in `WHERE` |
+| Claim | `SKIP LOCKED` **Claim Batch** (`APP_WORKERS_CLAIM_BATCH=0` auto from CPUs). Floor 18 = 500k/day drain per 500ms poll; max 50 so no `findAll`. Send-window + Confirmed in `WHERE`. Why: [../decision/scale.md](../decision/scale.md) |
 | Mail | After claim, one JOIN returning a **lean projection**. Copy that into outbox `payload` jsonb (replicate what the mail needs). Consumer must not `findById` the full Appointment/Customer/Vehicle/Dealership graph |
 | Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at` |
 

@@ -2,6 +2,7 @@ package com.dealership.reminder;
 
 import com.dealership.notification.NotificationService;
 import com.dealership.shared.config.AppProperties;
+import com.dealership.shared.metrics.AppMetrics;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -20,12 +21,17 @@ public class ReminderService {
   private final ReminderRepository reminders;
   private final NotificationService notifications;
   private final AppProperties properties;
+  private final AppMetrics metrics;
 
   public ReminderService(
-      ReminderRepository reminders, NotificationService notifications, AppProperties properties) {
+      ReminderRepository reminders,
+      NotificationService notifications,
+      AppProperties properties,
+      AppMetrics metrics) {
     this.reminders = reminders;
     this.notifications = notifications;
     this.properties = properties;
+    this.metrics = metrics;
   }
 
   public void insertForAppointment(UUID appointmentId) {
@@ -50,16 +56,22 @@ public class ReminderService {
   public void pollDue(String workerId) {
     reminders.expireClosedWindows();
     reminders.expireNoShows(properties.getReminders().getNoShowGrace());
-    reminders
-        .claimDue(workerId, properties.getWorkers().getLease())
-        .ifPresent(
-            claimed -> {
-              MDC.put("reminder_id", claimed.id().toString());
-              MDC.put("appointment_id", claimed.appointmentId().toString());
-              reminders.loadMailFacts(claimed.id()).ifPresent(notifications::enqueueDue);
-              log.info("reminder claimed offset={}", claimed.offsetMinutes());
-              MDC.remove("reminder_id");
-              MDC.remove("appointment_id");
-            });
+    var claimed =
+        reminders.claimDue(
+            workerId, properties.getWorkers().getLease(), properties.getWorkers().getClaimBatch());
+    if (claimed.isEmpty()) {
+      return;
+    }
+    metrics.remindersClaimed(claimed.size());
+    for (var facts :
+        reminders.loadMailFacts(
+            claimed.stream().map(ReminderRepository.ClaimedReminder::id).toList())) {
+      MDC.put("reminder_id", facts.reminderId().toString());
+      MDC.put("appointment_id", facts.appointmentId().toString());
+      notifications.enqueueDue(facts);
+      log.info("reminder claimed offset={}", facts.offsetMinutes());
+      MDC.remove("reminder_id");
+      MDC.remove("appointment_id");
+    }
   }
 }

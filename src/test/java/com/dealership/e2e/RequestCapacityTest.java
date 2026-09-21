@@ -34,7 +34,7 @@ class RequestCapacityTest extends AbstractIT {
   private static final Logger log = LoggerFactory.getLogger(RequestCapacityTest.class);
   private static final int READS = 200;
   private static final int WRITES = 40;
-  private static final int THREADS = 16;
+  private static final int THREADS = Math.max(2, Runtime.getRuntime().availableProcessors());
 
   @Test
   @Timeout(60)

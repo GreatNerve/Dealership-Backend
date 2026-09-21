@@ -1,6 +1,7 @@
 package com.dealership.notification.smtp;
 
 import com.dealership.notification.MailSnapshot;
+import com.dealership.notification.Recorded;
 import com.dealership.shared.time.BookingTimes;
 import java.time.Instant;
 import java.util.List;
@@ -21,7 +22,8 @@ public class StubNotificationSender implements NotificationSender {
   @Override
   public void send(MailSnapshot snapshot) {
     String wall = BookingTimes.formatMail(snapshot.scheduledAt(), snapshot.displayOffset());
-    sent.add(
+    Recorded.add(
+        sent,
         new RecordedSend(
             snapshot.offsetMinutes(),
             snapshot.appointmentId(),

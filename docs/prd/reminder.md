@@ -26,5 +26,5 @@
   Recover at T−22h or T−20h (still before T−13h) → **send 24h**. Recover at T−12h → 24h **no**. Recover 2h at T−90m → **send**. Recover 2h at T−30m → **no**. Book at T−3h: 24h already past midpoint → `EXPIRED`; 2h still `PENDING` until T−1h.
 - Cancelled or rescheduled: unsent old Reminders cancelled; new rows get `MAX(schedule_version)+1` on `reminders` (Appointment is not versioned). Workers re-check before send.
 - Immediate confirmation mail is **not** v1.
-- Due math is PostgreSQL `timestamptz` ± `interval`, set-based (no load-all in Java). Mail uses **Booking Offset**. Outbox carries a lean snapshot so the worker does not reload the full graph.
+- Due math is PostgreSQL `timestamptz` ± `interval`, set-based (no load-all in Java). Mail uses **Booking Offset**. Outbox carries a lean snapshot so the worker does not reload the full graph. Each poll claims a **Claim Batch** from CPU count. Floor **18** is 500k/day drain (`500_000/28_800×2×0.5s`), not “10× the poll.” Cap 50 so a tick never loads every due row. Why: [../decision/scale.md](../decision/scale.md).
 - Staff `GET /appointments/{id}/reminders` shows `offsetMinutes` and one send Instant (`dueAt` from `reminders.scheduled_at`, UTC). The client formats that Instant with **Dealership Timezone**. No `dueAtLocal`. That Instant is when that Reminder should send, not the visit `scheduledAt`.

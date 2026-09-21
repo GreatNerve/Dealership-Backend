@@ -136,7 +136,7 @@ public abstract class AbstractIT {
   }
 
   protected static String randomPlate(String state) {
-    String digits = UUID.randomUUID().toString().replaceAll("[^0-9]", "0");
-    return state + digits.substring(0, 2) + "AB" + digits.substring(2, 6);
+    String hex = UUID.randomUUID().toString().replace("-", "").toUpperCase();
+    return (state + hex).substring(0, 12);
   }
 }

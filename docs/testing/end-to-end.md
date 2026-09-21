@@ -80,7 +80,7 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 
 ## Capacity burst
 
-`RequestCapacityTest` (tag `capacity`) fires concurrent list GETs plus concurrent Appointment creates (unique Vehicles, rate limits off). It asserts zero `5xx`, every request in the burst succeeds, and logs handled count + req/s. Floor is a slow-CI bound, not an EC2 soak. See [../trd/capacity-and-ec2.md](../trd/capacity-and-ec2.md).
+`RequestCapacityTest` (tag `capacity`) fires concurrent list GETs plus concurrent Appointment creates (unique Vehicles, rate limits off). Client threads follow `availableProcessors()`. It asserts zero `5xx`, every request in the burst succeeds, and logs handled count + req/s. Floor is a slow-CI bound, not an EC2 soak. See [../trd/capacity-and-ec2.md](../trd/capacity-and-ec2.md).
 
 ## Reads
 

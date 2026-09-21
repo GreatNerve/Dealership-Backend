@@ -36,7 +36,7 @@ Do **not** invent a generic “worker framework” for two queues. Same pattern,
 
 ## Optimize (already locked)
 
-Clock, expire, no-show, claim `WHERE` = set-based SQL. Partial indexes. Bounded SKIP LOCKED. Outbox snapshot so the consumer does not reload entities. See [time.md](time.md).
+Clock, expire, no-show, claim `WHERE` = set-based SQL. Partial indexes. Bounded SKIP LOCKED **Claim Batch** (auto from CPUs, floor 18, max 50). Outbox snapshot so the consumer does not reload entities. See [time.md](time.md).
 
 HTTP lists: Spring Data pagination on JPA entities (derived query or Specification). Customer lists bind `customerId` from the token into `WHERE` / ownership `JOIN`. Nested refs on a page are **one `findAllById` per table**, never `findById` inside the row map. Native SQL stays SKIP LOCKED claim and Reminder/no-show clock — not Notification row updates, not Customer/Vehicle list search.
 

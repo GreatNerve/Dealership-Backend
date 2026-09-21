@@ -5,6 +5,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Repository;
 public class ReminderRepository {
   // JPA cannot claim FOR UPDATE SKIP LOCKED or expire by interval without loading graphs.
   // next due or visit; /2 is the Send Window midpoint (adjacent gap), not the full stretch
+  public static final String MAIL_WORKER_PREFIX = "mail-";
   private static final String NEXT_DUE =
       """
       COALESCE(
@@ -187,104 +189,137 @@ public class ReminderRepository {
   }
 
   // notify false is still due work; MailWorker appends logs/ instead of SMTP
-  public Optional<ClaimedReminder> claimDue(String workerId, Duration lease) {
-    List<ClaimedReminder> rows =
-        jdbc.query(
-            """
-            UPDATE reminders
-            SET status = CAST(:processing AS reminder_status),
-                locked_by = :worker,
-                lease_expires_at = now() + CAST(:lease AS interval),
-                updated_at = now()
-            WHERE id = (
-              SELECT r.id FROM reminders r
-              JOIN appointments a ON a.id = r.appointment_id
-              JOIN customers c ON c.id = a.customer_id
-              JOIN dealerships d ON d.id = a.dealership_id
-              WHERE r.status IN (
-                  CAST(:pending AS reminder_status),
-                  CAST(:retry AS reminder_status),
-                  CAST(:processing AS reminder_status))
-                AND a.status = CAST(:confirmed AS appointment_status)
-                AND r.scheduled_at <= now()
-                AND (r.next_attempt_at IS NULL OR r.next_attempt_at <= now())
-                AND (r.lease_expires_at IS NULL OR r.lease_expires_at < now())
-            """
-                + and(BEFORE_MIDPOINT)
-                + """
-              ORDER BY r.scheduled_at
+  // batch from CPUs (floor 18 = 500k/day × 2 offsets on a 500ms poll); cap 50 so no findAll
+  public List<ClaimedReminder> claimDue(String workerId, Duration lease, int batch) {
+    return jdbc.query(
+        """
+        UPDATE reminders
+        SET status = CAST(:processing AS reminder_status),
+            locked_by = :worker,
+            lease_expires_at = now() + CAST(:lease AS interval),
+            updated_at = now()
+        WHERE id IN (
+          SELECT r.id FROM reminders r
+          JOIN appointments a ON a.id = r.appointment_id
+          JOIN customers c ON c.id = a.customer_id
+          JOIN dealerships d ON d.id = a.dealership_id
+          WHERE r.status IN (
+              CAST(:pending AS reminder_status),
+              CAST(:retry AS reminder_status),
+              CAST(:processing AS reminder_status))
+            AND a.status = CAST(:confirmed AS appointment_status)
+            AND r.scheduled_at <= now()
+            AND (r.next_attempt_at IS NULL OR r.next_attempt_at <= now())
+            AND (r.lease_expires_at IS NULL OR r.lease_expires_at < now())
+        """
+            + and(BEFORE_MIDPOINT)
+            + """
+          ORDER BY r.scheduled_at
   FOR UPDATE OF r SKIP LOCKED
-  LIMIT 1
+  LIMIT :batch
 )
 RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, attempts
 """,
-            new MapSqlParameterSource()
-                .addValue("worker", workerId)
-                .addValue("lease", toPgInterval(lease))
-                .addValue("processing", ReminderStatus.PROCESSING.name())
-                .addValue("pending", ReminderStatus.PENDING.name())
-                .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
-                .addValue("confirmed", AppointmentStatus.CONFIRMED.name()),
-            (rs, i) ->
-                new ClaimedReminder(
-                    rs.getObject("id", UUID.class),
-                    rs.getObject("appointment_id", UUID.class),
-                    rs.getInt("offset_minutes"),
-                    rs.getInt("schedule_version"),
-                    rs.getTimestamp("scheduled_at").toInstant(),
-                    rs.getInt("attempts")));
-    return rows.stream().findFirst();
+        new MapSqlParameterSource()
+            .addValue("worker", workerId)
+            .addValue("lease", toPgInterval(lease))
+            .addValue("batch", batch)
+            .addValue("processing", ReminderStatus.PROCESSING.name())
+            .addValue("pending", ReminderStatus.PENDING.name())
+            .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
+            .addValue("confirmed", AppointmentStatus.CONFIRMED.name()),
+        (rs, i) ->
+            new ClaimedReminder(
+                rs.getObject("id", UUID.class),
+                rs.getObject("appointment_id", UUID.class),
+                rs.getInt("offset_minutes"),
+                rs.getInt("schedule_version"),
+                rs.getTimestamp("scheduled_at").toInstant(),
+                rs.getInt("attempts")));
   }
 
   public Optional<MailFacts> loadMailFacts(UUID reminderId) {
-    List<MailFacts> rows =
-        jdbc.query(
+    return loadMailFacts(List.of(reminderId)).stream().findFirst();
+  }
+
+  public List<MailFacts> loadMailFacts(Collection<UUID> reminderIds) {
+    if (reminderIds == null || reminderIds.isEmpty()) {
+      return List.of();
+    }
+    return jdbc.query(
+        """
+        SELECT r.id AS reminder_id,
+               a.id AS appointment_id,
+               r.offset_minutes,
+               r.schedule_version,
+               a.scheduled_at,
+               a.display_offset,
+               d.name AS dealership_name,
+               u.name AS customer_name,
+               v.make AS vehicle_make,
+               v.model AS vehicle_model,
+               v.year AS vehicle_year,
+               v.registration_number,
+               c.contact,
+               a."notify",
+               r.attempts
+        FROM reminders r
+        JOIN appointments a ON a.id = r.appointment_id
+        JOIN customers c ON c.id = a.customer_id
+        JOIN users u ON u.id = c.user_id
+        JOIN dealerships d ON d.id = a.dealership_id
+        JOIN vehicles v ON v.id = a.vehicle_id
+        WHERE r.id IN (:ids)
+        """,
+        Map.of("ids", reminderIds),
+        (rs, i) ->
+            new MailFacts(
+                rs.getObject("reminder_id", UUID.class),
+                rs.getObject("appointment_id", UUID.class),
+                rs.getInt("offset_minutes"),
+                rs.getInt("schedule_version"),
+                rs.getTimestamp("scheduled_at").toInstant(),
+                rs.getString("display_offset"),
+                rs.getString("dealership_name"),
+                rs.getString("customer_name"),
+                rs.getString("vehicle_make"),
+                rs.getString("vehicle_model"),
+                rs.getObject("vehicle_year", Integer.class),
+                rs.getString("registration_number"),
+                rs.getString("contact"),
+                rs.getBoolean("notify"),
+                rs.getInt("attempts")));
+  }
+
+  public boolean reopenDead(UUID reminderId, Duration lease) {
+    int updated =
+        jdbc.update(
             """
-            SELECT r.id AS reminder_id,
-                   a.id AS appointment_id,
-                   r.offset_minutes,
-                   r.schedule_version,
-                   a.scheduled_at,
-                   a.display_offset,
-                   d.name AS dealership_name,
-                   u.name AS customer_name,
-                   v.make AS vehicle_make,
-                   v.model AS vehicle_model,
-                   v.year AS vehicle_year,
-                   v.registration_number,
-                   c.contact,
-                   a."notify",
-                   r.attempts
-            FROM reminders r
-            JOIN appointments a ON a.id = r.appointment_id
-            JOIN customers c ON c.id = a.customer_id
-            JOIN users u ON u.id = c.user_id
-            JOIN dealerships d ON d.id = a.dealership_id
-            JOIN vehicles v ON v.id = a.vehicle_id
-            WHERE r.id = :id
+            UPDATE reminders
+            SET status = CAST(:processing AS reminder_status),
+                attempts = 0,
+                last_error = NULL,
+                next_attempt_at = NULL,
+                locked_by = :worker,
+                lease_expires_at = now() + CAST(:lease AS interval),
+                updated_at = now()
+            WHERE id = :id
+              AND (
+                status = CAST(:dead AS reminder_status)
+                OR (status = CAST(:processing AS reminder_status) AND locked_by = :worker)
+              )
             """,
-            Map.of("id", reminderId),
-            (rs, i) ->
-                new MailFacts(
-                    rs.getObject("reminder_id", UUID.class),
-                    rs.getObject("appointment_id", UUID.class),
-                    rs.getInt("offset_minutes"),
-                    rs.getInt("schedule_version"),
-                    rs.getTimestamp("scheduled_at").toInstant(),
-                    rs.getString("display_offset"),
-                    rs.getString("dealership_name"),
-                    rs.getString("customer_name"),
-                    rs.getString("vehicle_make"),
-                    rs.getString("vehicle_model"),
-                    rs.getObject("vehicle_year", Integer.class),
-                    rs.getString("registration_number"),
-                    rs.getString("contact"),
-                    rs.getBoolean("notify"),
-                    rs.getInt("attempts")));
-    return rows.stream().findFirst();
+            new MapSqlParameterSource()
+                .addValue("id", reminderId)
+                .addValue("worker", "replay")
+                .addValue("lease", toPgInterval(lease))
+                .addValue("processing", ReminderStatus.PROCESSING.name())
+                .addValue("dead", ReminderStatus.DEAD_LETTER.name()));
+    return updated == 1;
   }
 
   public boolean heartbeat(UUID reminderId, String workerId, Duration lease) {
+    // Poller/replay hold PROCESSING until SMTP starts; a live mail-* owner blocks a second send.
     int updated =
         jdbc.update(
             """
@@ -293,16 +328,23 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
                 lease_expires_at = now() + CAST(:lease AS interval),
                 updated_at = now()
             WHERE id = :id AND status = CAST(:processing AS reminder_status)
+              AND (
+                locked_by = :worker
+                OR locked_by IS NULL
+                OR locked_by NOT LIKE :mailLock
+                OR lease_expires_at IS NULL
+                OR lease_expires_at < now())
             """,
             new MapSqlParameterSource()
                 .addValue("id", reminderId)
                 .addValue("worker", workerId)
                 .addValue("lease", toPgInterval(lease))
+                .addValue("mailLock", MAIL_WORKER_PREFIX + "%")
                 .addValue("processing", ReminderStatus.PROCESSING.name()));
     return updated == 1;
   }
 
-  public boolean markSent(UUID reminderId) {
+  public boolean markSent(UUID reminderId, String workerId) {
     int updated =
         jdbc.update(
             """
@@ -310,18 +352,20 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
             SET status = CAST(:sent AS reminder_status), locked_by = NULL, lease_expires_at = NULL,
                 updated_at = now()
             WHERE id = :id
+              AND locked_by = :worker
               AND status = CAST(:processing AS reminder_status)
               AND lease_expires_at IS NOT NULL
               AND lease_expires_at > now()
             """,
             new MapSqlParameterSource()
                 .addValue("id", reminderId)
+                .addValue("worker", workerId)
                 .addValue("sent", ReminderStatus.SENT.name())
                 .addValue("processing", ReminderStatus.PROCESSING.name()));
     return updated == 1;
   }
 
-  public boolean markRetry(UUID reminderId, Instant nextAttempt, String error) {
+  public boolean markRetry(UUID reminderId, String workerId, Instant nextAttempt, String error) {
     int updated =
         jdbc.update(
             """
@@ -334,12 +378,14 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
                 lease_expires_at = NULL,
                 updated_at = now()
             WHERE id = :id
+              AND locked_by = :worker
               AND status = CAST(:processing AS reminder_status)
               AND lease_expires_at IS NOT NULL
               AND lease_expires_at > now()
             """,
             new MapSqlParameterSource()
                 .addValue("id", reminderId)
+                .addValue("worker", workerId)
                 .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
                 .addValue("processing", ReminderStatus.PROCESSING.name())
                 .addValue("next", Timestamp.from(nextAttempt))
@@ -347,7 +393,7 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
     return updated == 1;
   }
 
-  public boolean markDead(UUID reminderId, String error) {
+  public boolean markDead(UUID reminderId, String workerId, String error) {
     int updated =
         jdbc.update(
             """
@@ -359,12 +405,14 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
                 lease_expires_at = NULL,
                 updated_at = now()
             WHERE id = :id
+              AND locked_by = :worker
               AND status = CAST(:processing AS reminder_status)
               AND lease_expires_at IS NOT NULL
               AND lease_expires_at > now()
             """,
             new MapSqlParameterSource()
                 .addValue("id", reminderId)
+                .addValue("worker", workerId)
                 .addValue("dead", ReminderStatus.DEAD_LETTER.name())
                 .addValue("processing", ReminderStatus.PROCESSING.name())
                 .addValue("error", truncate(error)));

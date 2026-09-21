@@ -20,4 +20,4 @@ Front door: [../../README.md](../../README.md). Product rules: [../prd/README.md
 | UTC Instant + Booking Offset from `scheduledAt` | [utc-instant-and-booking-offset.md](utc-instant-and-booking-offset.md) |
 | SQL clock, lean snapshot, no app-layer time loop | [sql-clock-not-app-layer.md](sql-clock-not-app-layer.md) |
 | Deps Compose vs app image | [docker-runtime.md](docker-runtime.md) |
-| Size at 50k × 1.5, burst not Kafka | [scale.md](scale.md) |
+| Size at assignment 50k × 10, pools from this machine | [scale.md](scale.md) |

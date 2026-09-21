@@ -98,6 +98,10 @@ public class AppProperties {
       throw new IllegalStateException(
           "APP_JWT_SECRET must be set and must not be the committed default");
     }
+    int batch = workers.getClaimBatch();
+    if (batch < 1 || batch > 50) {
+      throw new IllegalStateException("APP_WORKERS_CLAIM_BATCH must be between 1 and 50");
+    }
   }
 
   static boolean rejectsCommittedJwtSecret(Environment environment) {
@@ -224,6 +228,7 @@ public class AppProperties {
     private int concurrency = 2;
     private Duration lease = Duration.ofSeconds(30);
     private Duration pollInterval = Duration.ofMillis(500);
+    private int claimBatch = 0;
 
     public int getConcurrency() {
       return Math.min(4, Math.max(2, concurrency));
@@ -247,6 +252,17 @@ public class AppProperties {
 
     public void setPollInterval(Duration pollInterval) {
       this.pollInterval = pollInterval;
+    }
+
+    public int getClaimBatch() {
+      if (claimBatch == 0) {
+        return HardwareSizing.claimBatch(HardwareSizing.cpus());
+      }
+      return claimBatch;
+    }
+
+    public void setClaimBatch(int claimBatch) {
+      this.claimBatch = claimBatch;
     }
   }
 

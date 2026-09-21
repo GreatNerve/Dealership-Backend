@@ -17,4 +17,4 @@ Discussion updates docs in the same turn. Application code lives under `src/` af
 | Operations (Swagger, rate limit, demo) | [operations.md](operations.md) |
 | Scope and later | [scope.md](scope.md) |
 
-**Scale:** assignment 50,000 Appointments/day; design at ×1.5 = 75,000/day.
+**Scale:** assignment PDF 50,000 Appointments/day × **10** = 500,000/day (headroom, not a 10× poll). Pools from CPU count. Why: [../decision/scale.md](../decision/scale.md).

@@ -18,8 +18,8 @@ class RetryPolicyTest {
   }
 
   @Test
-  void smtpAuthIsTransient() {
-    assertFalse(RetryPolicy.permanent(new NotificationFailedException("smtp auth failed", true)));
+  void smtpAuthIsPermanent() {
+    assertTrue(RetryPolicy.permanent(new NotificationFailedException("smtp auth failed", false)));
   }
 
   @Test

@@ -69,6 +69,14 @@ public class NotificationEntity {
     updatedAt = Instant.now();
   }
 
+  public void markReplay() {
+    status = NotificationStatus.PENDING;
+    attempts = 0;
+    lastError = null;
+    nextAttemptAt = null;
+    sentAt = null;
+  }
+
   public void markSent() {
     status = NotificationStatus.SENT;
     sentAt = Instant.now();

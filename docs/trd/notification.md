@@ -1,6 +1,6 @@
 # Notification (TRD)
 
-Outbox publisher drains with SKIP LOCKED (`OutboxRepository.claim`) → RabbitMQ. Claim includes `PROCESSING` rows whose lease has expired (same reclaim as Reminders). Notification and outbox **rows** are JPA (`NotificationRepository`, `OutboxEventRepository`). **2–4** consumers (default 2), each `prefetch=1`. Lease 30s with heartbeat; SMTP timeout shorter than lease. `markSent` / `markDead` / `markRetry` no-op unless the Reminder is still `PROCESSING` with a live lease.
+Outbox publisher drains with SKIP LOCKED (`OutboxRepository.claim`, same **Claim Batch** as Reminders, auto from CPUs) → RabbitMQ. Claim includes `PROCESSING` rows whose lease has expired (same reclaim as Reminders). Notification and outbox **rows** are JPA (`NotificationRepository`, `OutboxEventRepository`). **2–4** consumers (default 2), each `prefetch=1`. Lease 30s with heartbeat; SMTP timeout shorter than lease. `markSent` / `markDead` / `markRetry` no-op unless the Reminder is still `PROCESSING` with a live lease.
 
 Send path lives in `com.dealership.notification.smtp` (`NotificationSender`, stub, SMTP, `MailWorker`). Notification rows, outbox, and HTTP stay in `com.dealership.notification`.
 
@@ -8,12 +8,12 @@ Send path lives in `com.dealership.notification.smtp` (`NotificationSender`, stu
 
 Notification idempotency key: `appointmentId:offsetMinutes:scheduleVersion` (unique).
 
-Transient (SMTP auth, timeout, 429, 5xx) → `RETRY_SCHEDULED`, exponential backoff + jitter (30s, 60s, 2 min, 4 min, cap 5 minutes), max 5 attempts. Invalid contact (`AddressException` / `MailParseException`) → `DEAD_LETTER` immediately (no SMTP retries).
+Transient (timeout, 429, 5xx) → `RETRY_SCHEDULED`, exponential backoff + jitter (30s, 60s, 2 min, 4 min, cap 5 minutes), max 5 attempts. SMTP auth and invalid contact (`AddressException` / `MailParseException`) → `DEAD_LETTER` immediately (no SMTP retries).
 
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/appointments/{id}/reminders` | Staff, home Dealership, else 404. One nested `notification` **per Reminder**, always present. Also `offsetMinutes` + `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone. No `dueAtLocal`. No `notifications` row → `{ "id": null, "status": "NOT_SCHEDULED", … }`. Do not insert that row. `lastError` is Staff-only. Not a list GET; do not paginate. |
-| POST | `/notifications/{id}/replay` | Dead-letter only. Same key. 202. Staff, home Dealership of that Appointment, else 404. 409 `ALREADY_SENT` if SENT. 409 `REPLAY_NOT_DEAD_LETTER` if not `DEAD_LETTER`. Needs a real Notification id (`NOT_SCHEDULED` has none). |
+| POST | `/notifications/{id}/replay` | Dead-letter only. Same key. 202. Staff, home Dealership of that Appointment, else 404. 409 `ALREADY_SENT` if SENT. 409 `REPLAY_NOT_DEAD_LETTER` if not `DEAD_LETTER` (Notification **and** Reminder). Reopens Reminder `DEAD_LETTER` → `PROCESSING` with a live lease and Notification → `PENDING` (attempts reset) so `MailWorker` can send. Needs a real Notification id (`NOT_SCHEDULED` has none). |
 
 Staff JWT (or `dev`). Config: `app.notifications.mode=stub|smtp` (`APP_NOTIFICATIONS_MODE`), `app.notifications.log-dir` (`APP_NOTIFICATIONS_LOG_DIR`, default `logs`). SMTP (Brevo): `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD`, `SPRING_MAIL_AUTH`, `SPRING_MAIL_STARTTLS`. Password stays in local `.env` only. `notify: true` uses this sender; `notify: false` still writes `logs/notifications.log`. Java `NotificationStatus` includes `NOT_SCHEDULED` for this GET. PostgreSQL `notification_status` does **not** — GET synthesizes it. Stored rows stay `PENDING`…`CANCELLED`.
 

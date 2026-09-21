@@ -9,6 +9,7 @@ import com.dealership.reminder.ReminderRepository.MailFacts;
 import com.dealership.shared.access.ResourceAccess;
 import com.dealership.shared.api.ApiErrorCode;
 import com.dealership.shared.api.ApiException;
+import com.dealership.shared.config.AppProperties;
 import com.dealership.shared.security.AuthPrincipal;
 import com.dealership.shared.security.CurrentUser;
 import java.time.Instant;
@@ -25,18 +26,21 @@ public class NotificationService {
   private final ReminderRepository reminders;
   private final AppointmentRepository appointments;
   private final DealershipStaffRepository staff;
+  private final AppProperties properties;
 
   public NotificationService(
       NotificationRepository notifications,
       OutboxEventRepository outboxEvents,
       ReminderRepository reminders,
       AppointmentRepository appointments,
-      DealershipStaffRepository staff) {
+      DealershipStaffRepository staff,
+      AppProperties properties) {
     this.notifications = notifications;
     this.outboxEvents = outboxEvents;
     this.reminders = reminders;
     this.appointments = appointments;
     this.staff = staff;
+    this.properties = properties;
   }
 
   @Transactional
@@ -88,6 +92,12 @@ public class NotificationService {
       throw ApiException.of(
           ApiErrorCode.REPLAY_NOT_DEAD_LETTER, "Only a dead-lettered Notification can be replayed");
     }
+    if (!reminders.reopenDead(row.getReminderId(), properties.getWorkers().getLease())) {
+      throw ApiException.of(
+          ApiErrorCode.REPLAY_NOT_DEAD_LETTER, "Only a dead-lettered Notification can be replayed");
+    }
+    row.markReplay();
+    notifications.save(row);
     var facts = reminders.loadMailFacts(row.getReminderId()).orElseThrow(ApiException::notFound);
     enqueueDue(facts);
   }

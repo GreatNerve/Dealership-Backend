@@ -6,6 +6,7 @@ import com.dealership.notification.NotificationService;
 import com.dealership.reminder.ReminderRepository;
 import com.dealership.shared.config.AppProperties;
 import com.dealership.shared.config.RabbitConfig;
+import com.dealership.shared.metrics.AppMetrics;
 import com.dealership.shared.time.TimeProvider;
 import jakarta.annotation.PreDestroy;
 import java.util.UUID;
@@ -30,7 +31,8 @@ public class MailWorker {
   private final NotificationService notifications;
   private final AppProperties properties;
   private final TimeProvider time;
-  private final String workerId = "mail-" + UUID.randomUUID();
+  private final AppMetrics metrics;
+  private final String workerId = ReminderRepository.MAIL_WORKER_PREFIX + UUID.randomUUID();
   private final ScheduledExecutorService heartbeats = Executors.newSingleThreadScheduledExecutor();
 
   public MailWorker(
@@ -39,13 +41,15 @@ public class MailWorker {
       ReminderRepository reminders,
       NotificationService notifications,
       AppProperties properties,
-      TimeProvider time) {
+      TimeProvider time,
+      AppMetrics metrics) {
     this.sender = sender;
     this.fileLog = fileLog;
     this.reminders = reminders;
     this.notifications = notifications;
     this.properties = properties;
     this.time = time;
+    this.metrics = metrics;
   }
 
   @PreDestroy
@@ -69,14 +73,18 @@ public class MailWorker {
             TimeUnit.SECONDS);
     try {
       if (notifications.alreadySent(snapshot.idempotencyKey())) {
-        if (!reminders.markSent(snapshot.reminderId())) {
-          log.info("skip complete, reminder lease lost");
+        if (reminders.heartbeat(snapshot.reminderId(), workerId, properties.getWorkers().getLease())
+            && reminders.markSent(snapshot.reminderId(), workerId)) {
+          return;
         }
+        log.info("skip complete, reminder lease lost");
+        metrics.leaseSkip();
         return;
       }
       if (!reminders.heartbeat(
           snapshot.reminderId(), workerId, properties.getWorkers().getLease())) {
         log.info("skip send, reminder not processing");
+        metrics.leaseSkip();
         return;
       }
       // notify false: assignment file log. notify true: stub or SMTP from mode.
@@ -85,27 +93,33 @@ public class MailWorker {
       } else {
         sender.send(snapshot);
       }
-      if (!reminders.markSent(snapshot.reminderId())) {
+      if (!reminders.markSent(snapshot.reminderId(), workerId)) {
         log.info("skip complete, reminder lease lost");
+        metrics.leaseSkip();
         return;
       }
       notifications.markSent(snapshot.idempotencyKey());
+      metrics.sent(latenessSeconds(snapshot));
       log.info("notification sent offset={}", snapshot.offsetLabel());
     } catch (NotificationFailedException ex) {
       int attempt = snapshot.attempts() + 1;
       if (RetryPolicy.permanent(ex) || RetryPolicy.deadLetter(attempt)) {
-        if (!reminders.markDead(snapshot.reminderId(), ex.getMessage())) {
+        if (!reminders.markDead(snapshot.reminderId(), workerId, ex.getMessage())) {
           log.info("skip complete, reminder lease lost");
+          metrics.leaseSkip();
           return;
         }
         notifications.markDead(snapshot.idempotencyKey(), ex.getMessage());
+        metrics.deadLetter();
       } else {
         var next = RetryPolicy.nextAttempt(time.now(), attempt);
-        if (!reminders.markRetry(snapshot.reminderId(), next, ex.getMessage())) {
+        if (!reminders.markRetry(snapshot.reminderId(), workerId, next, ex.getMessage())) {
           log.info("skip complete, reminder lease lost");
+          metrics.leaseSkip();
           return;
         }
         notifications.markRetry(snapshot.idempotencyKey(), next, ex.getMessage());
+        metrics.retry();
       }
       log.warn(
           "notification failed offset={} transient={}",
@@ -117,5 +131,10 @@ public class MailWorker {
       MDC.remove("appointment_id");
       MDC.remove("reminder_id");
     }
+  }
+
+  private long latenessSeconds(MailSnapshot snapshot) {
+    var due = snapshot.scheduledAt().minusSeconds(snapshot.offsetMinutes() * 60L);
+    return Math.max(0, time.now().getEpochSecond() - due.getEpochSecond());
   }
 }

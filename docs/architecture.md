@@ -25,7 +25,7 @@ flowchart TB
     direction TB
     P1["1. Mark Reminder EXPIRED if past midpoint"]
     P2["2. Mark Appointment NO_SHOW if past grace"]
-    P3["3. Claim one due Reminder — SKIP LOCKED"]
+    P3["3. Claim a Claim Batch of due Reminders — SKIP LOCKED"]
     P4["4. INSERT Notification PENDING"]
     P5["5. INSERT outbox and publish to RabbitMQ"]
     P1 --> P2 --> P3 --> P4 --> P5
@@ -40,7 +40,7 @@ flowchart TB
   end
 
   Retry["RETRY_SCHEDULED on both tables — poller claims again"]
-  Dead["DEAD_LETTER on reminders and notifications — Staff replay"]
+  Dead["DEAD_LETTER — Staff replay reopens PROCESSING"]
 
   Client --> controller --> Wait --> poller --> worker
   worker -->|transient fail| Retry --> poller
@@ -79,7 +79,7 @@ flowchart TB
     direction TB
     P1["1. Mark Reminder EXPIRED if past midpoint"]
     P2["2. Mark Appointment NO_SHOW if past grace"]
-    P3["3. Claim one due Reminder — SKIP LOCKED"]
+    P3["3. Claim a Claim Batch of due Reminders — SKIP LOCKED"]
     P4["4. INSERT Notification and outbox, publish to RabbitMQ"]
     P1 --> P2 --> P3 --> P4
   end
@@ -93,21 +93,21 @@ flowchart TB
   end
 
   Retry["RETRY_SCHEDULED on both tables — poller claims again"]
-  Dead["DEAD_LETTER on reminders and notifications — Staff replay"]
+  Dead["DEAD_LETTER — Staff replay reopens PROCESSING"]
 
   poller --> worker
   worker -->|transient fail| Retry --> poller
   worker -->|permanent or max attempts| Dead
 ```
 
-Expire closed send windows and no-shows with set-based `UPDATE`s (partial indexes), then claim **one** (or a small batch) that is still sendable.
+Expire closed send windows and no-shows with set-based `UPDATE`s (partial indexes), then claim a **Claim Batch** sized from **CPU count** at boot (`APP_WORKERS_CLAIM_BATCH=0` auto; max 50). Floor **18** is the 500k/day drain (`500_000/28_800×2 offsets×0.5s`), not “poll 10×”. Why: [decision/scale.md](decision/scale.md).
 
 Claim SQL shape:
 
 ```text
 UPDATE reminders
 SET status = 'PROCESSING', locked_by = :worker, lease_expires_at = now() + interval '30 seconds'
-WHERE id = (
+WHERE id IN (
   SELECT r.id FROM reminders r
   JOIN appointments a ON a.id = r.appointment_id
   WHERE r.status IN ('PENDING','RETRY_SCHEDULED','PROCESSING')
@@ -125,14 +125,14 @@ WHERE id = (
           - r.scheduled_at) / 2
   ORDER BY r.scheduled_at
   FOR UPDATE SKIP LOCKED
-  LIMIT 1
+  LIMIT :batch
 )
 RETURNING *;
 ```
 
 Same SKIP LOCKED pattern for `outbox_events`. Native SQL / JdbcTemplate for clock and claim — not for Notification/outbox row CRUD.
 
-In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, customer name if set, vehicle make/model/year, Vehicle Number, contact, `notify`). Mail worker uses that snapshot; it does not reload the full graph. `notify: false` → append `logs/notifications.log`. `notify: true` → stub or SMTP.
+In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (`IN` the claimed ids — appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, customer name if set, vehicle make/model/year, Vehicle Number, contact, `notify`). Mail worker uses that snapshot; it does not reload the full graph. `notify: false` → append `logs/notifications.log`. `notify: true` → stub or SMTP.
 
 External I/O is **outside** the claim transaction. Renew the lease (heartbeat) while SMTP runs so a slow send is not stolen. A second short transaction records the result. Stale workers must not complete after lease loss (check `locked_by` / version) and must not send if they lost the lease.
 
@@ -158,9 +158,9 @@ Shop-floor In Progress/Completed is later. v1 reads: own or home Dealership, els
 
 Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. IP comes from `request.getRemoteAddr()` unless `app.rate-limit.trust-forwarded-for` (`APP_RATE_LIMIT_TRUST_FORWARDED_FOR`) is true, in which case the first `X-Forwarded-For` hop is used. Default **false** — do not trust that header unless a reverse proxy is in front. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
 
-## 7. What scales at 75k/day
+## 7. What scales at 50k/day (sized at 500k)
 
-Average create rate is still low. The spike is many Reminders becoming due in the same minute. Mitigations: **set-based SQL** (no load-all-and-loop), partial indexes, send-window in the claim `WHERE`, lean outbox snapshot, bounded claim batches, **2–4 mail workers** (default 2) with lease heartbeat, two app instances sharing SKIP LOCKED. Do not add Kafka for this load.
+**Why 500k:** the PDF is 50k Appointments/day / 500 Dealerships; 10× is review headroom (one order of magnitude), not a second multiplier on the poll. **Why CPU-sized pools:** this laptop, Docker, and EC2 do not share cores; guessing Hikari=20 / batch=10 is wrong on every other box. **Why a Claim Batch at all:** `LIMIT 1` / 500ms is 2/s; an 8-hour 500k day with two offsets needs ~35/s; floor **18** is that drain per poll (`500_000/28_800×2×0.5`). Cap 50 so Java never `findAll`s due rows. Hikari `2×CPUs` (Postgres-on-SSD); Tomcat `16×CPUs` capped at Spring’s 200. Mail stays 2–4 because SMTP is the limiter. Kafka is still theatre. Full why: [decision/scale.md](decision/scale.md).
 
 ## 8. Demo path
 

@@ -1,5 +1,8 @@
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    threads:
+      max: ${SERVER_TOMCAT_THREADS_MAX:0}
 
 spring:
   application:
@@ -15,7 +18,7 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:dealership}
     password: ${SPRING_DATASOURCE_PASSWORD:dealership}
     hikari:
-      maximum-pool-size: ${HIKARI_MAX_POOL:20}
+      maximum-pool-size: ${HIKARI_MAX_POOL:0}
       connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:5000}
       connection-init-sql: SET TIME ZONE 'UTC'
   jpa:
@@ -59,7 +62,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info
   endpoint:
     health:
       probes:
@@ -104,6 +107,7 @@ app:
     concurrency: ${APP_WORKERS_CONCURRENCY:2}
     lease: ${APP_WORKERS_LEASE:30s}
     poll-interval: ${APP_WORKERS_POLL_INTERVAL:500ms}
+    claim-batch: ${APP_WORKERS_CLAIM_BATCH:0}
   idempotency:
     ttl: ${APP_IDEMPOTENCY_TTL:24h}
   pagination:

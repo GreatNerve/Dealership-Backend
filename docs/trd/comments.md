@@ -6,7 +6,9 @@ When we write Java (only after the user asks), comments stay **rare**.
 
 Useful:
 
-- Why SKIP LOCKED + lease (two workers, crash recovery).
+- Why SKIP LOCKED + lease (two workers, crash recovery). A live `mail-*` owner blocks a second SMTP send; poller/replay locks are handed off.
+- Why dead-letter replay sets Reminder `PROCESSING` with a live lease (MailWorker will not send a `DEAD_LETTER` row).
+- Why the Claim Batch floor is 18 (`500_000/28_800×2×0.5s` = 10× assignment 50k on an 8-hour day; auto from CPUs). Cap 50 so a poll never loads the full due set. Not “poll 10×”. Full why: [../decision/scale.md](../decision/scale.md).
 - Why SMTP timeout is shorter than the lease (slow mail must not double-send).
 - Why Notification/outbox is not created at Appointment create.
 - Why a unique index is the proof, not an `if`.

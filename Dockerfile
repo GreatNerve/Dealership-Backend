@@ -11,6 +11,6 @@ RUN useradd --system --uid 10001 app \
  && chown 10001:10001 logs
 COPY --from=build /src/target/dealership-0.1.0.jar app.jar
 USER 10001
-ENV JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
+ENV JAVA_TOOL_OPTIONS="-Duser.timezone=UTC -XX:MaxRAMPercentage=50.0"
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

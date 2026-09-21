@@ -42,7 +42,7 @@ public class SmtpNotificationSender implements NotificationSender {
           snapshot.offsetLabel(),
           snapshot.appointmentId());
     } catch (MailAuthenticationException ex) {
-      throw new NotificationFailedException("smtp auth failed", true, ex);
+      throw new NotificationFailedException("smtp auth failed", false, ex);
     } catch (Exception ex) {
       if (SmtpFailures.invalidContact(ex)) {
         throw new NotificationFailedException("invalid contact", false, ex);

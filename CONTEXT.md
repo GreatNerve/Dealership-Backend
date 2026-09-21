@@ -134,6 +134,10 @@ _Avoid_: Message, event (unqualified)
 A time-bounded claim on a due **Reminder** or **Outbox Event** so a crashed worker does not hold it forever.
 _Avoid_: Lock (unqualified), mutex
 
+**Claim Batch**:
+How many due **Reminders** (and **Outbox Events**) one poll claims with `SKIP LOCKED`. Auto from CPU count (`APP_WORKERS_CLAIM_BATCH=0`). Floor **18** is the 8-hour 500k/day drain (10× the assignment 50k, two offsets, 500ms poll); cap 50 so a tick never loads every due row. Not a fixed 10 and not “poll 10×”. Why: [docs/decision/scale.md](docs/decision/scale.md).
+_Avoid_: Fetch size, page size (those are HTTP lists)
+
 ### Deferred (do not design yet)
 
 **Privacy** (later):
@@ -180,7 +184,7 @@ Expert: No. Same Idempotency Key and body returns the original Appointment. Uniq
 
 Dev: The stub ran, then we switched to SMTP and hit replay. Two emails?
 
-Expert: Mail Replay must use the same notification idempotency key. At-least-once processing; the provider key is how we avoid two real mails.
+Expert: Mail Replay must use the same notification idempotency key. Replay reopens the Reminder to `PROCESSING` so the worker actually sends. At-least-once processing; the provider key is how we avoid two real mails.
 
 Dev: They booked 10:00 PM with offset +05:30. Worker is on EC2 in us-east. What does the Reminder mail say?
 

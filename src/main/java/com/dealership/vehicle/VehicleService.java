@@ -9,6 +9,7 @@ import com.dealership.vehicle.VehicleDtos.CreateVehicleRequest;
 import com.dealership.vehicle.VehicleDtos.VehicleResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +36,11 @@ public class VehicleService {
     vehicle.setMake(Inputs.sanitize(request.make()));
     vehicle.setModel(Inputs.sanitize(request.model()));
     vehicle.setYear(request.year());
-    vehicles.save(vehicle);
+    try {
+      vehicles.saveAndFlush(vehicle);
+    } catch (DataIntegrityViolationException ex) {
+      throw ApiException.of(ApiErrorCode.REGISTRATION_TAKEN, "Vehicle number already registered");
+    }
     log.info("vehicle created registration={}", LogMask.vehicleNumber(registrationNumber));
     return VehicleResponse.from(vehicle, customer);
   }
