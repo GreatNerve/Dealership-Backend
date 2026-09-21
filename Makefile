@@ -40,7 +40,7 @@ deps:
 	docker compose -f docker-compose.deps.yml up -d
 
 run: deps
-	$(MVNW) spring-boot:run
+	set -a && [ -f .env ] && . ./.env; set +a && $(MVNW) spring-boot:run
 
 stop:
 	@pids=""; \

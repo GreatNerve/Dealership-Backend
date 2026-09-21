@@ -1,6 +1,6 @@
 # Notification pipeline: stub / Brevo, 2–4 workers
 
-Default sender is the **stub** (assignment-safe). A flag switches the same `NotificationSender` to **Brevo SMTP**. Locally that SMTP path hits **Mailhog**.
+Default sender is the **stub** (assignment-safe). A flag switches the same `NotificationSender` to **Brevo SMTP**.
 
 **2–4 leased workers** (default 2) send in parallel because SMTP is slow. Each consumer prefetch is 1. Redis stays off this path.
 

@@ -81,7 +81,7 @@ One configured duration before `scheduledAt` (default `24h` and `2h`). Expand th
 _Avoid_: Reminder Type, a closed enum of offsets, kind, channel
 
 **Send Window**:
-How long a due **Reminder** may still send. Adjacent offset gap ÷ 2 (next due, or visit start for the last offset). First half: send. Past the midpoint: `EXPIRED`, no mail for that offset. Not a 1-hour buffer around 24h. Not the full stretch to the next offset.
+How long a due **Reminder** may still send **if the worker goes down and then recovers**. Adjacent offset gap ÷ 2 (next due, or visit start for the last offset). Worker recovers in the first half: send. Recovers past the midpoint: `EXPIRED`, no mail for that offset. Not a 1-hour buffer around 24h. Not the full stretch to the next offset.
 _Avoid_: buffer hour, grace hour (no-show grace is separate)
 
 **Notification**:
@@ -93,7 +93,7 @@ Staff GET status when that **Reminder** has no **Notification** row yet (not due
 _Avoid_: pending (PENDING is a real Notification row), missing, N/A, null notification
 
 **Notification Mode**:
-Process-wide `stub` or `smtp`. Stub is the assignment default; SMTP is Brevo (Mailhog in local Docker). Used when Appointment `notify` is true.
+Process-wide `stub` or `smtp`. Stub is the assignment default; SMTP is **Brevo** (`SPRING_MAIL_*` in `.env`). Used when Appointment `notify` is true.
 _Avoid_: Channel as the flag name
 
 **Mock Appointment**:

@@ -18,7 +18,12 @@ class RetryPolicyTest {
   }
 
   @Test
-  void authFailureIsPermanent() {
+  void smtpAuthIsTransient() {
+    assertFalse(RetryPolicy.permanent(new NotificationFailedException("smtp auth failed", true)));
+  }
+
+  @Test
+  void invalidContactIsPermanent() {
     assertTrue(RetryPolicy.permanent(new NotificationFailedException("bad address", false)));
   }
 
@@ -26,8 +31,10 @@ class RetryPolicyTest {
   void backoffStaysInsideCap() {
     Instant now = Instant.parse("2026-09-20T00:00:00Z");
     Instant next = RetryPolicy.nextAttempt(now, 1);
-    assertTrue(next.isAfter(now));
+    assertTrue(!next.isBefore(now.plusSeconds(30)));
     assertTrue(next.isBefore(now.plusSeconds(301)));
+    Instant second = RetryPolicy.nextAttempt(now, 2);
+    assertTrue(!second.isBefore(now.plusSeconds(60)));
     assertEquals(5, RetryPolicy.MAX_ATTEMPTS);
   }
 }

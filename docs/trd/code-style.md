@@ -16,6 +16,7 @@ One of each (names can differ; the *job* must not be duplicated):
 | Error JSON + `correlationId` | one `ApiResponse` envelope (`success`, `data`, `error`, `message`, `correlationId`) |
 | Parse `scheduledAt` → Instant + `display_offset` | one time parse |
 | Mail Local Wall Time from Instant + offset | one formatter (HTTP Customer GET and mail) |
+| Reminder mail subject / text / HTML | one `ReminderMail` from the outbox snapshot |
 | Reminder due-time `INSERT … SELECT` | one SQL, used by create **and** reschedule |
 | SKIP LOCKED claim + lease heartbeat | one lease helper; Reminder and outbox pass table/SQL, not two copy-pasted workers |
 | `NotificationSender` | one interface; stub and SMTP implement it; mode flag picks the bean. `notify: false` uses `FileNotificationLog` (`logs/notifications.log`), not this interface |

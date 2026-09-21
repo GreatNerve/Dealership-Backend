@@ -19,7 +19,7 @@ flowchart TB
     A1 --> A2 --> A3 --> A4
   end
 
-  Wait["Wait until due, still inside Send Window"]
+  Wait["Wait until due. If worker was down, send only inside Send Window"]
 
   subgraph poller [Poller]
     direction TB
@@ -132,7 +132,7 @@ RETURNING *;
 
 Same SKIP LOCKED pattern for `outbox_events`. Native SQL / JdbcTemplate for clock and claim — not for Notification/outbox row CRUD.
 
-In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, contact, `notify`). Mail worker uses that snapshot; it does not reload the full graph. `notify: false` → append `logs/notifications.log`. `notify: true` → stub or SMTP.
+In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, vehicle make/model/year, Vehicle Number, contact, `notify`). Mail worker uses that snapshot; it does not reload the full graph. `notify: false` → append `logs/notifications.log`. `notify: true` → stub or SMTP.
 
 External I/O is **outside** the claim transaction. Renew the lease (heartbeat) while SMTP runs so a slow send is not stolen. A second short transaction records the result. Stale workers must not complete after lease loss (check `locked_by` / version) and must not send if they lost the lease.
 
@@ -164,4 +164,4 @@ Average create rate is still low. The spike is many Reminders becoming due in th
 
 ## 8. Demo path
 
-Seed: 1 Dealership, 1 Staff Member, 1 Customer, 2 Vehicles. Default `app.notifications.mode=stub`. Optionally `smtp` + Mailhog. `notify: false` writes `logs/notifications.log`. Video: POST Appointment → logs → DB rows. Same Idempotency-Key replay is the reliability clip.
+Seed: 1 Dealership, 1 Staff Member, 1 Customer, 2 Vehicles. Default `app.notifications.mode=stub`. Optionally `smtp` + **Brevo**. `notify: false` writes `logs/notifications.log`. Video: POST Appointment → logs → DB rows. Same Idempotency-Key replay is the reliability clip.

@@ -7,6 +7,7 @@ No Spring context. No containers. Public functions and policies only.
 - Offsets come from config; default 24h and 2h (strings bound as SQL `interval` — do not reimplement subtraction in unit tests).
 - Offset input (`+05:30`) normalises to the same Instant for HTTP parse.
 - Format Instant + stored `display_offset` `+05:30` → Local Wall Time `22:00 UTC+05:30`, not `16:30Z` as the mail string.
+- `ReminderMail` HTML + text: local clock `10:00 PM` (no “UTC”), Vehicle make/model/year + Vehicle Number, no “2-hour reminder”, dealership name HTML-escaped.
 - Same Instant + Dealership Timezone for staff display helper (shop zone).
 - Formatter never uses `ZoneId.systemDefault()` (EC2 us-east must not leak).
 
@@ -36,7 +37,7 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Retry / backoff
 
-- Transient vs permanent classification (timeout, 5xx, 429 vs bad address, 401).
+- Transient vs permanent classification (SMTP auth/timeout retry; invalid contact does not).
 - Exponential backoff with jitter stays inside min/max.
 - Attempt 5 → dead-letter, no next attempt.
 

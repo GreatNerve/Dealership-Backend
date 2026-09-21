@@ -37,9 +37,14 @@ public class NotificationService {
             facts.scheduledAt(),
             facts.displayOffset(),
             facts.dealershipName(),
+            facts.vehicleMake(),
+            facts.vehicleModel(),
+            facts.vehicleYear(),
+            facts.registrationNumber(),
             facts.contact(),
             facts.idempotencyKey(),
-            facts.notifyEnabled());
+            facts.notifyEnabled(),
+            facts.attempts());
     OutboxEventEntity event = new OutboxEventEntity();
     event.setEventType(OutboxEventType.REMINDER_DUE);
     event.setAggregateId(facts.reminderId());

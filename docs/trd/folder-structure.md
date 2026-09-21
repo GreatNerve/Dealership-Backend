@@ -18,7 +18,7 @@ Documented now. Created when implementing. Do not invent a second layout.
   pom.xml                            # includes Spotless
   Dockerfile                         # multi-stage Java 21 app image
   .dockerignore
-  docker-compose.deps.yml            # postgres, rabbitmq, redis, mailhog
+  docker-compose.deps.yml            # postgres, rabbitmq, redis
   docker-compose.yml                 # main: deps + app
   .cursor/rules/project-constraints.mdc
   docs/
@@ -38,6 +38,7 @@ Documented now. Created when implementing. Do not invent a second layout.
     reminder/
     notification/                    # Notification + outbox (JPA / SKIP LOCKED claim)
       FileNotificationLog.java       # notify:false → logs/notifications.log
+      ReminderMail.java              # HTML + text from snapshot
       smtp/                          # NotificationSender, stub, SMTP, MailWorker
   src/main/resources/
     application.yml

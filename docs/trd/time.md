@@ -43,7 +43,7 @@ Example visit `2026-09-21T04:40:00+05:30` (`notify: true`):
 
 If the visit is **less than 2 hours** away, **both** default offsets are already past due; 2h is also past its midpoint (T−1h) if remaining is under 1h → both `EXPIRED` → no Notification. Book **more than 2 hours** out for a 2h row that can still become due; the 2h mail only sends in **T−2h → T−1h**. Book **more than 24 hours** out for the 24h mail, which only sends in **T−24h → T−13h**. Book at **T−3h**: 24h past midpoint (`EXPIRED`, no mail), 2h `PENDING` (one mail at T−2h, window until T−1h). Two Reminder **rows**, one send.
 
-Send window (SQL): adjacent gap ÷ 2. `nextDueAt` = next Reminder `dueAt` or visit `scheduled_at`. Send while `dueAt <= now() < dueAt + (nextDueAt - dueAt) / 2`. Default:
+Send window (SQL; **if the worker goes down and then recovers**): adjacent gap ÷ 2. `nextDueAt` = next Reminder `dueAt` or visit `scheduled_at`. Send while `dueAt <= now() < dueAt + (nextDueAt - dueAt) / 2`. Default:
 
 | Offset | From (inclusive) | To (exclusive) | How |
 | --- | --- | --- | --- |
@@ -73,11 +73,11 @@ Plus `scheduledAtLocal` for the caller:
 
 ## Mail
 
-Format Instant with `display_offset`:
+HTML + plain text from one `ReminderMail` (outbox snapshot). Date and clock from Instant + `display_offset`, **no UTC string in the mail**:
 
-`Tuesday, 22 September 2026 at 10:00 PM (UTC+05:30)`
+`Tuesday, 22 September 2026` / `10:00 PM`
 
-Not `16:30 UTC` as the only time. Not the EC2 local clock. Stub payload uses the same string (no raw contact).
+Vehicle: make, model, year, **Vehicle Number**. Subject `Service appointment — {dealership}` (not “2-hour reminder”). Not `16:30 UTC`. Not the EC2 local clock. Stub/file log may still include the offset for operators. From: `APP_MAIL_FROM` (`dheeraj@greatnerve.com`).
 
 ## Math (PostgreSQL, not Java)
 
@@ -130,7 +130,7 @@ The application layer does not load every due row, compute times, and write back
 | Mail | After claim, one JOIN returning a **lean projection**. Copy that into outbox `payload` jsonb (replicate what the mail needs). Consumer must not `findById` the full Appointment/Customer/Vehicle/Dealership graph |
 | Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at` |
 
-Outbox snapshot fields: appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, contact (for SMTP, never logged). Not full **Vehicle Number**, not unused columns.
+Outbox snapshot fields: appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, vehicle make/model/year, **Vehicle Number** (mail only, never logged), contact (for SMTP, never logged).
 
 `display_offset` is never in a `WHERE`.
 

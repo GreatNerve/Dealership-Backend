@@ -34,7 +34,7 @@ These tests prove the **database is the ledger**.
 - Create: 24h Reminder `scheduled_at` equals `appointment.scheduled_at - interval '24 hours'` (and 2h likewise). Assert in SQL/Testcontainers, not Java minus.
 - Appointment 10 hours out → 24h row `EXPIRED` (past midpoint T−13h), 2h `PENDING`, without a Java loop. Appointment 20 hours out → 24h still sendable (before T−13h).
 - No-show: one UPDATE, Confirmed with `scheduled_at` two hours ago → `NO_SHOW_EXPIRED`; Vehicle can take a new Confirmed. Suite must not `findAll` Confirmed into the app to decide.
-- Outbox payload after claim contains the lean snapshot (`scheduled_at`, `display_offset`, dealership name); worker test must not require loading Vehicle/Dealership entities to format mail.
+- Outbox payload after claim contains the lean snapshot (`scheduled_at`, `display_offset`, dealership name, vehicle make/model/year, Vehicle Number); worker test must not require loading Vehicle/Dealership entities to format mail.
 
 ## Leases (DB only)
 

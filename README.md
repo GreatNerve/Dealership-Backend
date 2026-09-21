@@ -6,14 +6,16 @@ Public host: [https://dealership.greatnerve.com](https://dealership.greatnerve.c
 
 ## Reminder send window
 
-Adjacent gap ÷ 2. Remaining time to the next due **greater than** half the gap → send. Remaining **≤ half** → no mail for that offset (`EXPIRED`). Visit at **T**. Default `24h,2h`.
+This window exists **because if the worker goes down and then recovers**, mail can still go out. Due time is when it should send. If the worker was down at that instant, after it comes back it may send while `now` is still in the first half of the gap to the next due. If it recovers **past the midpoint** → `EXPIRED`, no mail for that offset (a 24h Reminder must not send an hour before the visit).
+
+Adjacent gap ÷ 2. Remaining time to the next due **greater than** half the gap → send. Remaining **≤ half** → no mail for that offset. Visit at **T**. Default `24h,2h`.
 
 | Reminder | Due | Gap to next | Midpoint | Notification may send | After that |
 | --- | --- | --- | --- | --- | --- |
 | 24h | T−24h | 22h (to 2h) | **T−13h** | **T−24h → T−13h** | `EXPIRED`, no 24h mail |
 | 2h | T−2h | 2h (to visit) | **T−1h** | **T−2h → T−1h** | `EXPIRED`, no 2h mail |
 
-Recover 24h at T−22h or T−20h → send. At T−12h → no. Recover 2h at T−90m → send. At T−30m → no. Product: [docs/prd/reminder.md](docs/prd/reminder.md). Why: [docs/decision/send-window-and-config.md](docs/decision/send-window-and-config.md). Clock: [docs/trd/time.md](docs/trd/time.md).
+Worker goes down, recovers at T−22h or T−20h → send 24h. Recovers at T−12h → no. Recovers at T−90m → send 2h. Recovers at T−30m → no. Product: [docs/prd/reminder.md](docs/prd/reminder.md). Why: [docs/decision/send-window-and-config.md](docs/decision/send-window-and-config.md). Clock: [docs/trd/time.md](docs/trd/time.md).
 
 ## Run locally
 
@@ -47,7 +49,6 @@ docker compose up -d --build
 - API: http://localhost:8080/api/v1
 - Swagger: http://localhost:8080/swagger-ui.html
 - Health: http://localhost:8080/actuator/health
-- Mailhog (when SMTP): http://localhost:8025
 
 Demo login (`dev` profile): `staff@demo.local` / `password` and `customer@demo.local` / `password`.
 
@@ -63,7 +64,7 @@ bash scripts/test-appointment.sh 2h
 
 Curl-only steps: [manual-appointment.md](manual-appointment.md). `notify: false` writes `logs/notifications.log`. Book ~20h out to fire the 24h Reminder now; ~100 minutes out to fire the 2h Reminder. Rate limit is **15 / 60s per endpoint** (never a 15-minute wait).
 
-Default Notification Mode is **stub**. Set `APP_NOTIFICATIONS_MODE=smtp` to send through Mailhog.
+Default Notification Mode is **stub**. Set `APP_NOTIFICATIONS_MODE=smtp` to send through **Brevo** (host/login/key in `.env`).
 
 ## Flow
 
@@ -82,7 +83,7 @@ flowchart TB
     A1 --> A2 --> A3 --> A4
   end
 
-  Wait["Wait until due, still inside Send Window"]
+  Wait["Wait until due. If worker was down, send only inside Send Window"]
 
   subgraph poller [Poller]
     direction TB

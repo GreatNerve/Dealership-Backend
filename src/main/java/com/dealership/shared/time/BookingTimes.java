@@ -16,6 +16,10 @@ public final class BookingTimes {
 
   private static final DateTimeFormatter MAIL =
       DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' h:mm a", Locale.ENGLISH);
+  private static final DateTimeFormatter MAIL_DATE =
+      DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH);
+  private static final DateTimeFormatter MAIL_CLOCK =
+      DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
 
   private BookingTimes() {}
 
@@ -53,6 +57,15 @@ public final class BookingTimes {
   public static String formatMail(Instant utc, ZoneOffset offset) {
     OffsetDateTime local = utc.atOffset(offset);
     return local.format(MAIL) + " (UTC" + offset.getId() + ")";
+  }
+
+  public static String formatMailDate(Instant utc, String displayOffset) {
+    return utc.atOffset(parseStoredOffset(displayOffset)).format(MAIL_DATE);
+  }
+
+  public static String formatMailClock(Instant utc, String displayOffset) {
+    OffsetDateTime local = utc.atOffset(parseStoredOffset(displayOffset));
+    return local.format(MAIL_CLOCK);
   }
 
   public static String formatMail(Instant utc, String displayOffset) {

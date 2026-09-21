@@ -2,7 +2,7 @@
 
 Runtime shape:
 
-- `docker-compose.deps.yml` — **dependencies only** (Postgres, RabbitMQ, Redis, Mailhog). I run the app with Maven.
+- `docker-compose.deps.yml` — **dependencies only** (Postgres, RabbitMQ, Redis). I run the app with Maven.
 - `Dockerfile` — **the application image**.
 - `docker-compose.yml` — **main** file: deps + app.
 

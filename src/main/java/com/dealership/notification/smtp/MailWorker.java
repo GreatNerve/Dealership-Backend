@@ -81,8 +81,8 @@ public class MailWorker {
       notifications.markSent(snapshot.idempotencyKey());
       log.info("notification sent offset={}", snapshot.offsetLabel());
     } catch (NotificationFailedException ex) {
-      int attempt = 1;
-      if (RetryPolicy.permanent(ex) || RetryPolicy.deadLetter(attempt + 1)) {
+      int attempt = snapshot.attempts() + 1;
+      if (RetryPolicy.permanent(ex) || RetryPolicy.deadLetter(attempt)) {
         reminders.markDead(snapshot.reminderId(), ex.getMessage());
         notifications.markDead(snapshot.idempotencyKey(), ex.getMessage());
       } else {

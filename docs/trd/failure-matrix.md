@@ -10,7 +10,7 @@
 | Worker crash after claim | Reclaim after lease expiry |
 | Publish crash after outbox write | Outbox publisher retries |
 | Duplicate broker message | Idempotent consumer |
-| SMTP timeout | Retry same notification key |
+| SMTP timeout / auth (IP, credentials) | Retry same notification key (max 5) |
 | Invalid contact | DEAD_LETTER |
 | Max attempts | DEAD_LETTER, metric |
 | Cancel vs send race | Documented; possible one extra send |

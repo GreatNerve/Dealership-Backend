@@ -38,6 +38,12 @@ class BookingTimesTest {
   }
 
   @Test
+  void mailClockIsLocalWithoutUtcLabel() {
+    Instant utc = Instant.parse("2026-09-22T16:30:00Z");
+    assertEquals("10:00 PM", BookingTimes.formatMailClock(utc, "+05:30"));
+  }
+
+  @Test
   void staffLocalUsesDealershipZone() {
     Instant utc = Instant.parse("2026-09-22T16:30:00Z");
     String local = BookingTimes.formatStaffLocal(utc, "Asia/Kolkata");

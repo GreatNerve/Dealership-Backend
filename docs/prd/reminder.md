@@ -14,7 +14,7 @@
 - Unique on `(appointment, offset_minutes, schedule version)`.
 - `notify: false` creates the rows; when due, workers append `logs/notifications.log` and store Notification `SENT` (no email). `notify: true` uses Notification Mode (stub or SMTP).
 - Notification/outbox is created **only when due** (`scheduled_at <= now`). No Notification rows for days-ahead Reminders.
-- Send window: adjacent gap ÷ 2. `nextDueAt` is the next smaller offset’s due time, or visit `scheduledAt` for the last offset. Gap = `nextDueAt − dueAt`. Midpoint = `dueAt + gap/2`. Send while `dueAt <= now() < midpoint`. Remaining time to next due **greater than** half the gap → send. Remaining **less than** (or equal) half → `EXPIRED`, no mail for that offset. Not a 1-hour buffer. Not the full stretch to the next offset.
+- Send window (because if the worker goes down and then recovers): adjacent gap ÷ 2. Due time is when mail should go. Worker down at due, recovers in the first half of the gap → still send. Recovers past the midpoint → `EXPIRED`. `nextDueAt` is the next smaller offset’s due time, or visit `scheduledAt` for the last offset. Gap = `nextDueAt − dueAt`. Midpoint = `dueAt + gap/2`. Send while `dueAt <= now() < midpoint`. Remaining time to next due **greater than** half the gap → send. Remaining **less than** (or equal) half → `EXPIRED`, no mail for that offset. Not a 1-hour buffer. Not the full stretch to the next offset.
 
   Visit at **T**. Default `24h,2h`: gap 24h−2h = **22h**, half = **11h**. Last offset vs visit: gap 2h−0 = **2h**, half = **1h**.
 

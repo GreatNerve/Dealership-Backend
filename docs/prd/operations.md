@@ -10,12 +10,12 @@
 6. As a developer, I want a deps Compose file, so I can run the app from Maven.
 7. As a developer, I want the **main** Compose file to run deps **and** the application image together.
 8. As a caller, I want list GET endpoints paginated (`page`, `size`, default **100**) and searchable (`q`), so that large shops do not dump every row.
-9. As a Customer, I want Reminder mail to show the Local Wall Time I booked (`10:00 PM UTC+05:30` from `scheduledAt`), not the stored UTC Instant and not the EC2 clock.
+9. As a Customer, I want Reminder mail to show the local time I booked (`10:00 PM`), not UTC and not the EC2 clock.
 10. As an operator, I want the public API at `https://dealership.greatnerve.com`.
 
 ## Video success
 
 1. Create an Appointment (`bash scripts/test-appointment.sh`, [manual curl](../../manual-appointment.md), or Swagger).
-2. Show logs: create, Reminder rows, send (stub, `logs/notifications.log` when `notify: false`, or Mailhog).
+2. Show logs: create, Reminder rows, send (stub, `logs/notifications.log` when `notify: false`, or Brevo when `smtp`).
 3. Show database rows for Appointment and Reminders/Notifications.
 4. Optionally: same Idempotency-Key replay; second Vehicle; 409 on same Vehicle.

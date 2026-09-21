@@ -178,7 +178,7 @@ public class AppProperties {
 
   public static class Notifications {
     private String mode = "stub";
-    private String from = "noreply@dealership.greatnerve.com";
+    private String from = "dheeraj@greatnerve.com";
     private String logDir = "logs";
 
     public String getMode() {

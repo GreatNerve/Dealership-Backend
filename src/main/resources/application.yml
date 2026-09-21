@@ -49,7 +49,11 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:localhost}
     port: ${SPRING_MAIL_PORT:1025}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
+      mail.smtp.auth: ${SPRING_MAIL_AUTH:false}
+      mail.smtp.starttls.enable: ${SPRING_MAIL_STARTTLS:false}
       mail.smtp.connectiontimeout: ${APP_MAIL_TIMEOUT_MS:20000}
       mail.smtp.timeout: ${APP_MAIL_TIMEOUT_MS:20000}
       mail.smtp.writetimeout: ${APP_MAIL_TIMEOUT_MS:20000}
@@ -98,7 +102,7 @@ app:
     offsets: "${APP_REMINDER_OFFSETS:24h,2h}"
   notifications:
     mode: ${APP_NOTIFICATIONS_MODE:stub}
-    from: ${APP_MAIL_FROM:noreply@dealership.greatnerve.com}
+    from: ${APP_MAIL_FROM:dheeraj@greatnerve.com}
     log-dir: ${APP_NOTIFICATIONS_LOG_DIR:logs}
   workers:
     concurrency: ${APP_WORKERS_CONCURRENCY:2}

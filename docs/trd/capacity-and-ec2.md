@@ -6,4 +6,4 @@ The in-process proof is `RequestCapacityTest`: concurrent list GETs + Appointmen
 
 ## EC2 (last implementation step)
 
-Do not expand AWS now. Later: one EC2, main `docker-compose.yml`, `.env` for Brevo/JWT, security group, Actuator. Public host: `https://dealership.greatnerve.com`. Mailhog is local-dev only. Second instance is another week. App JVM stays UTC regardless of region (`us-east-1` vs India); see [time.md](time.md).
+Do not expand AWS now. Later: one EC2, main `docker-compose.yml`, `.env` for Brevo/JWT, security group, Actuator. Public host: `https://dealership.greatnerve.com`. Second instance is another week. App JVM stays UTC regardless of region (`us-east-1` vs India); see [time.md](time.md).

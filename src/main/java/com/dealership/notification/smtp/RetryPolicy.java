@@ -19,8 +19,10 @@ public final class RetryPolicy {
   }
 
   public static Instant nextAttempt(Instant now, int attemptNumber) {
-    long baseSeconds = (long) Math.pow(2, Math.min(attemptNumber, 6));
-    long jitter = ThreadLocalRandom.current().nextLong(0, Math.max(1, baseSeconds / 2 + 1));
+    // 30s, 60s, 120s, 240s + jitter; cap 5 minutes.
+    int n = Math.max(1, attemptNumber);
+    long baseSeconds = 30L * (1L << Math.min(n - 1, 3));
+    long jitter = ThreadLocalRandom.current().nextLong(0, Math.max(1, baseSeconds / 5 + 1));
     long capped = Math.min(300, baseSeconds + jitter);
     return now.plus(Duration.ofSeconds(capped));
   }

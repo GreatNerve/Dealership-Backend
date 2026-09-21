@@ -12,9 +12,14 @@ public record MailSnapshot(
     Instant scheduledAt,
     String displayOffset,
     String dealershipName,
+    String vehicleMake,
+    String vehicleModel,
+    Integer vehicleYear,
+    String registrationNumber,
     String contact,
     String idempotencyKey,
-    Boolean notifyEnabled) {
+    Boolean notifyEnabled,
+    int attempts) {
 
   public boolean fileOnly() {
     return Boolean.FALSE.equals(notifyEnabled);

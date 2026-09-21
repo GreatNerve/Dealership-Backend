@@ -1,8 +1,8 @@
 package com.dealership.notification.smtp;
 
 import com.dealership.notification.MailSnapshot;
+import com.dealership.notification.ReminderMail;
 import com.dealership.shared.config.AppProperties;
-import com.dealership.shared.time.BookingTimes;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,29 +29,21 @@ public class SmtpNotificationSender implements NotificationSender {
 
   @Override
   public void send(MailSnapshot snapshot) throws NotificationFailedException {
-    String wall = BookingTimes.formatMail(snapshot.scheduledAt(), snapshot.displayOffset());
+    ReminderMail body = ReminderMail.of(snapshot);
     try {
       MimeMessage message = mail.createMimeMessage();
-      MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
-      helper.setFrom(properties.getNotifications().getFrom());
+      MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+      helper.setFrom(properties.getNotifications().getFrom(), "Dealership");
       helper.setTo(snapshot.contact());
-      helper.setSubject("Service appointment reminder — " + snapshot.dealershipName());
-      helper.setText(
-          "Your appointment at "
-              + snapshot.dealershipName()
-              + " is on "
-              + wall
-              + ".\n\nThis is your "
-              + snapshot.offsetLabel()
-              + " reminder.",
-          false);
+      helper.setSubject(body.subject());
+      helper.setText(body.text(), body.html());
       mail.send(message);
       log.info(
           "smtp notification offset={} appointment_id={}",
           snapshot.offsetLabel(),
           snapshot.appointmentId());
     } catch (MailAuthenticationException ex) {
-      throw new NotificationFailedException("smtp auth failed", false, ex);
+      throw new NotificationFailedException("smtp auth failed", true, ex);
     } catch (MailSendException ex) {
       throw new NotificationFailedException("smtp send failed", true, ex);
     } catch (Exception ex) {
