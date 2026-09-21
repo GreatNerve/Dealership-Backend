@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +47,7 @@ public class IdempotencyService {
   public record Begin(IdempotencyKeyEntity row, boolean replay) {}
 
   @Transactional
-  public Begin begin(String key, String fingerprint) {
+  public Begin begin(UUID userId, String key, String fingerprint) {
     if (key != null) {
       key = Inputs.sanitize(key);
     }
@@ -54,7 +55,7 @@ public class IdempotencyService {
       throw ApiException.of(
           ApiErrorCode.MISSING_IDEMPOTENCY_KEY, "Idempotency-Key is required (max 255)");
     }
-    var existing = keys.findByKey(key);
+    var existing = keys.findByUserIdAndKey(userId, key);
     if (existing.isPresent()) {
       IdempotencyKeyEntity row = existing.get();
       if (row.getExpiresAt().isBefore(time.now())) {
@@ -74,6 +75,7 @@ public class IdempotencyService {
       }
     }
     IdempotencyKeyEntity row = new IdempotencyKeyEntity();
+    row.setUserId(userId);
     row.setKey(key);
     row.setFingerprint(fingerprint);
     row.setStatus(IdempotencyStatus.STARTED);
@@ -81,7 +83,7 @@ public class IdempotencyService {
     try {
       keys.saveAndFlush(row);
     } catch (DataIntegrityViolationException ex) {
-      IdempotencyKeyEntity raced = keys.findByKey(key).orElseThrow();
+      IdempotencyKeyEntity raced = keys.findByUserIdAndKey(userId, key).orElseThrow();
       if (!raced.getFingerprint().equals(fingerprint)) {
         throw ApiException.of(
             ApiErrorCode.IDEMPOTENCY_KEY_REUSED, "Idempotency-Key was used with a different body");

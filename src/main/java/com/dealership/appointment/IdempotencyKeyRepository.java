@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface IdempotencyKeyRepository extends JpaRepository<IdempotencyKeyEntity, UUID> {
 
-  Optional<IdempotencyKeyEntity> findByKey(String key);
+  Optional<IdempotencyKeyEntity> findByUserIdAndKey(UUID userId, String key);
 
   @Transactional
   long deleteByExpiresAtBefore(Instant cutoff);

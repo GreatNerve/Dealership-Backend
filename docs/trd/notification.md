@@ -13,7 +13,7 @@ Transient (SMTP auth, timeout, 429, 5xx) → `RETRY_SCHEDULED`, exponential back
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/appointments/{id}/reminders` | Staff, home Dealership, else 404. One nested `notification` **per Reminder**, always present. Also `offsetMinutes` + `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone. No `dueAtLocal`. No `notifications` row → `{ "id": null, "status": "NOT_SCHEDULED", … }`. Do not insert that row. `lastError` is Staff-only. Not a list GET; do not paginate. |
-| POST | `/notifications/{id}/replay` | Dead-letter. Same key. 202. Staff, home Dealership of that Appointment, else 404. 409 if already SENT. Needs a real Notification id (`NOT_SCHEDULED` has none). |
+| POST | `/notifications/{id}/replay` | Dead-letter only. Same key. 202. Staff, home Dealership of that Appointment, else 404. 409 `ALREADY_SENT` if SENT. 409 `REPLAY_NOT_DEAD_LETTER` if not `DEAD_LETTER`. Needs a real Notification id (`NOT_SCHEDULED` has none). |
 
 Staff JWT (or `dev`). Config: `app.notifications.mode=stub|smtp` (`APP_NOTIFICATIONS_MODE`), `app.notifications.log-dir` (`APP_NOTIFICATIONS_LOG_DIR`, default `logs`). SMTP (Brevo): `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD`, `SPRING_MAIL_AUTH`, `SPRING_MAIL_STARTTLS`. Password stays in local `.env` only. `notify: true` uses this sender; `notify: false` still writes `logs/notifications.log`. Java `NotificationStatus` includes `NOT_SCHEDULED` for this GET. PostgreSQL `notification_status` does **not** — GET synthesizes it. Stored rows stay `PENDING`…`CANCELLED`.
 

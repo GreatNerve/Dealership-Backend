@@ -11,7 +11,7 @@
 | Publish crash after outbox write | Outbox publisher retries; expired `PROCESSING` lease is claimable again |
 | Duplicate broker message | Idempotent consumer |
 | SMTP timeout / auth (IP, credentials) | Retry same notification key (max 5) |
-| Invalid contact (`AddressException`) | DEAD_LETTER immediately |
+| Invalid contact (`AddressException`, `SendFailedException`) | DEAD_LETTER immediately |
 | Completing after lease lost | `markSent` / `markDead` / `markRetry` no-op if not live `PROCESSING` |
 | Max attempts | DEAD_LETTER, metric |
 | Cancel vs send race | Documented; possible one extra send |

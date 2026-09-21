@@ -19,9 +19,10 @@ These tests prove the **database is the ledger**.
 
 ## API idempotency table
 
-- First create stores key, fingerprint, resource id, response.
-- Replay same key + fingerprint returns the same Appointment id; still one Appointment row.
+- First create stores key, fingerprint, resource id, response. Key is unique per User.
+- Replay same key + fingerprint **for that User** returns the same Appointment id; still one Appointment row.
 - Same key, different fingerprint → conflict; still one Appointment row.
+- Another User may use the same header value for their own create.
 - Key expires after 24h (config); reuse after expiry is a new create.
 - UTC midnight purge: `expires_at` in the past is deleted; unexpired rows stay. Notification `idempotency_key` is not this table.
 
@@ -51,7 +52,7 @@ These tests prove the **database is the ledger**.
 
 - After create, Staff `GET /appointments/{id}/reminders` returns one item per offset; `offsetMinutes` and `dueAt` match `reminders.offset_minutes` / `reminders.scheduled_at` (UTC Instant, no `dueAtLocal`); each `notification.status` is `NOT_SCHEDULED` and `id` is null while not due. Never omit `notification`.
 - After a successful send, nested Notification is `SENT` with `sentAt`.
-- After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id. Replay from another shop’s Staff is 404.
+- After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id. Replay from another shop’s Staff is 404. Replay of `PENDING` / `RETRY_SCHEDULED` is `409 REPLAY_NOT_DEAD_LETTER`.
 
 ## Identity login
 

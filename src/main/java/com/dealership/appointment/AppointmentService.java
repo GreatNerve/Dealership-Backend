@@ -102,7 +102,7 @@ public class AppointmentService {
     }
     CustomerEntity customer =
         customers.findByUserId(user.userId()).orElseThrow(ApiException::notFound);
-    var begin = idempotency.begin(idempotencyKey, idempotency.fingerprint(body));
+    var begin = idempotency.begin(user.userId(), idempotencyKey, idempotency.fingerprint(body));
     if (begin.replay()) {
       return idempotency.replayBody(begin.row());
     }
@@ -132,7 +132,7 @@ public class AppointmentService {
         staff.findByUserId(user.userId()).orElseThrow(ApiException::notFound);
     DealershipEntity shop =
         dealerships.findById(membership.getDealershipId()).orElseThrow(ApiException::notFound);
-    var begin = idempotency.begin(idempotencyKey, idempotency.fingerprint(body));
+    var begin = idempotency.begin(user.userId(), idempotencyKey, idempotency.fingerprint(body));
     if (begin.replay()) {
       return idempotency.replayBody(begin.row());
     }
@@ -419,7 +419,7 @@ public class AppointmentService {
         appointment.getVehicleId(),
         appointment.getDealershipId(),
         CustomerDtos.CustomerSummary.from(customer, customerName),
-        VehicleDtos.VehicleResponse.from(vehicle, customer),
+        VehicleDtos.VehicleResponse.from(vehicle, customer, customerName),
         DealershipDtos.DealershipResponse.from(shop),
         appointment.getScheduledAt(),
         appointment.getDisplayOffset(),

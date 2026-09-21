@@ -7,6 +7,7 @@ import com.dealership.reminder.ReminderRepository;
 import com.dealership.shared.config.AppProperties;
 import com.dealership.shared.config.RabbitConfig;
 import com.dealership.shared.time.TimeProvider;
+import jakarta.annotation.PreDestroy;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -45,6 +46,11 @@ public class MailWorker {
     this.notifications = notifications;
     this.properties = properties;
     this.time = time;
+  }
+
+  @PreDestroy
+  void stopHeartbeats() {
+    heartbeats.shutdownNow();
   }
 
   @RabbitListener(queues = RabbitConfig.NOTIFICATION_QUEUE)

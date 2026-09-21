@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.core.env.Environment;
 
 @ConfigurationProperties(prefix = "app")
 public class AppProperties {
@@ -23,6 +25,14 @@ public class AppProperties {
   private final RateLimit rateLimit = new RateLimit();
   private final Pagination pagination = new Pagination();
   private final Appointments appointments = new Appointments();
+  private Environment environment;
+
+  static final String COMMITTED_JWT_SECRET = "local-dev-only-change-me-32bytes-min!!";
+
+  @Autowired
+  void setEnvironment(Environment environment) {
+    this.environment = environment;
+  }
 
   public String getPublicHost() {
     return publicHost;
@@ -84,6 +94,22 @@ public class AppProperties {
     if (secret.length < 32) {
       throw new IllegalStateException("APP_JWT_SECRET must be at least 32 bytes");
     }
+    if (rejectsCommittedJwtSecret(environment) && COMMITTED_JWT_SECRET.equals(jwt.getSecret())) {
+      throw new IllegalStateException(
+          "APP_JWT_SECRET must be set and must not be the committed default");
+    }
+  }
+
+  static boolean rejectsCommittedJwtSecret(Environment environment) {
+    if (environment == null) {
+      return false;
+    }
+    for (String profile : environment.getActiveProfiles()) {
+      if ("dev".equals(profile) || "test".equals(profile)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public static class Cors {
@@ -99,7 +125,7 @@ public class AppProperties {
   }
 
   public static class Jwt {
-    private String secret = "local-dev-only-change-me-32bytes-min!!";
+    private String secret = COMMITTED_JWT_SECRET;
     private Duration ttl = Duration.ofDays(7);
 
     public String getSecret() {

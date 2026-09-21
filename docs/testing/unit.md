@@ -25,8 +25,9 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Idempotency fingerprint
 
-- Same key + same body → replay.
+- Same key + same body → replay for that User.
 - Same key + different body → reuse error.
+- Same key, different User → not a replay.
 - Missing key → invalid.
 
 ## Inputs
@@ -40,7 +41,7 @@ No Spring context. No containers. Public functions and policies only.
 - Transient vs permanent classification (SMTP auth/timeout retry; `AddressException` / invalid contact does not).
 - Exponential backoff with jitter stays inside min/max.
 - Attempt 5 → dead-letter, no next attempt.
-- JWT secret shorter than 32 bytes is rejected (no zero-pad).
+- JWT secret shorter than 32 bytes is rejected (no zero-pad). Non-`dev`/`test` also rejects the committed default secret.
 
 ## No-show
 

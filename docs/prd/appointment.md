@@ -27,6 +27,6 @@
 | Time | ISO-8601 with offset in (`scheduledAt`). Store UTC Instant **and** **Booking Offset**. No Customer timezone field. Mail / Customer GET: that offset (`10:00 PM UTC+05:30`). Staff GET: **Dealership Timezone**. JVM UTC so EC2 region does not matter. See [../trd/time.md](../trd/time.md). |
 | Statuses v1 | `CONFIRMED`, `CANCELLED`, `NO_SHOW_EXPIRED`. |
 | Reads | Customer: own Appointments/Vehicles. Staff: Appointments at home Dealership. Staff Customer directory: search, create Customer + Vehicle, then book. Else **404**. List GETs are **paginated and searchable** (`q`). |
-| Idempotency Key | Required on create. Same key + body replays for 24h. After TTL, reuse is a new create. Expired `idempotency_keys` are deleted at UTC midnight so unused rows do not accumulate. |
+| Idempotency Key | Required on create. Scoped to the calling User. Same key + body replays for 24h. After TTL, reuse is a new create. Expired `idempotency_keys` are deleted at UTC midnight so unused rows do not accumulate. |
 
 Shop-floor In Progress / Completed is later ([scope.md](scope.md)).

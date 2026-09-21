@@ -28,6 +28,11 @@ public final class VehicleDtos {
       @Schema(example = "2022") int year,
       CustomerSummary customer) {
     public static VehicleResponse from(VehicleEntity entity, CustomerEntity customer) {
+      return from(entity, customer, null);
+    }
+
+    public static VehicleResponse from(
+        VehicleEntity entity, CustomerEntity customer, String customerName) {
       return new VehicleResponse(
           entity.getId(),
           entity.getCustomerId(),
@@ -35,7 +40,7 @@ public final class VehicleDtos {
           entity.getMake(),
           entity.getModel(),
           entity.getYear(),
-          CustomerSummary.from(customer));
+          CustomerSummary.from(customer, customerName));
     }
   }
 }

@@ -119,7 +119,7 @@ _Avoid_: Treating Local Wall Time as the database value; using the host clock
 ### Reliability
 
 **Idempotency Key**:
-A client-supplied header value that makes `POST /appointments` safe to retry. Distinct from notification idempotency. Rows expire after 24h and unused expired rows are deleted at UTC midnight.
+A client-supplied header value that makes `POST /appointments` safe to retry for **that User**. Distinct from notification idempotency. Rows expire after 24h and unused expired rows are deleted at UTC midnight.
 _Avoid_: Request id (correlation is different), dedupe token (too vague)
 
 **Schedule Version**:

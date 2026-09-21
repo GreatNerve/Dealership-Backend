@@ -16,11 +16,11 @@ alwaysApply: true
 - Redis = Bucket4j token bucket HTTP limits only, **per endpoint**, **15 / 60s** (window never longer than 60s). Postgres = ledger (Reminders, one Confirmed per Vehicle when `APP_ONE_CONFIRMED_PER_VEHICLE=true`).
 - Staff create Appointments at home Dealership only.
 - List GETs paginated **and searchable** (`page`, `size`, `q`). Default `size` **100**, max **1000**. Nested refs batched (`findAllById` / `findByCustomerIdIn`), not per-row `findById`. Appointment reads: own or home Dealership, else 404. Staff `GET /customers` (and `/customers/{id}/vehicles`) to obtain ids for booking. Staff `POST /customers` and `POST /customers/{id}/vehicles` for walk-ins. Staff `GET /appointments/{id}/reminders` for Reminder + Notification (`offsetMinutes`, `dueAt` UTC, always-present `notification`, `NOT_SCHEDULED` until a row exists) and `lastError` (home Dealership); replay is `POST /notifications/{id}/replay` at that home Dealership only.
-- `APP_JWT_SECRET` ≥ 32 bytes or the process does not start. `make run` defaults to `dev`; production must omit that profile.
+- `APP_JWT_SECRET` ≥ 32 bytes or the process does not start. Non-`dev`/`test` also refuses the committed default secret. `make run` defaults to `dev`; production must omit that profile.
 - Reminder offsets, no-show grace, JWT, workers, pagination, rate limits, and `APP_ONE_CONFIRMED_PER_VEHICLE` from env/config. Status/role columns are PostgreSQL ENUM + Java enum, not `varchar`. Reminder offsets are `APP_REMINDER_OFFSETS` (`24h,2h` default; add `7d`, `6h`) stored as `offset_minutes`, not an enum.
 - Reminder offsets from config. No confirmation mail. Workers 2–4, lease heartbeat.
 - Shop-floor In Progress/Completed is later. Do not invent it.
 - Never log raw contact, User name, or full **Vehicle Number**. Default Notification Mode is stub. `notify: false` appends `logs/notifications.log`; `notify: true` uses stub or SMTP.
 - Duplicate Reminder prevention must be a unique constraint plus a test, not an application `if`.
 - Store Appointment `scheduled_at` as UTC **and** `display_offset` from `scheduledAt`. No Customer timezone in the payload. Mail/Customer GET use Booking Offset. Staff GET uses Dealership Timezone. JVM UTC so EC2 host zone never leaks. Never print UTC as the only time in mail. Clock math is set-based SQL.
-- Idempotency-Key TTL 24h. Expired `idempotency_keys` purged at UTC midnight. Notification `idempotency_key` is not TTL-purged.
+- Idempotency-Key TTL 24h, unique per User. Expired `idempotency_keys` purged at UTC midnight. Notification `idempotency_key` is not TTL-purged.

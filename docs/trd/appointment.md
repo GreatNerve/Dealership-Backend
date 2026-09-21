@@ -1,6 +1,6 @@
 # Appointment (TRD)
 
-`Idempotency-Key` header **required** on POST (max 255). Replay identical fingerprint → original body. Different body → `409 IDEMPOTENCY_KEY_REUSED`. Missing → `400`. Keys retained **24 hours** (`app.idempotency.ttl`), then a reused key is a new create. Expired rows (`expires_at < now()`) are deleted at **UTC midnight** (`IdempotencyScheduler`). Notification `idempotency_key` is the mail ledger and is not purged.
+`Idempotency-Key` header **required** on POST (max 255). Unique per User (`UNIQUE (user_id, key)`). Replay identical fingerprint for **that User** → original body. Different body → `409 IDEMPOTENCY_KEY_REUSED`. Another User may reuse the same header value. Missing → `400`. Keys retained **24 hours** (`app.idempotency.ttl`), then a reused key is a new create. Expired rows (`expires_at < now()`) are deleted at **UTC midnight** (`IdempotencyScheduler`). Notification `idempotency_key` is the mail ledger and is not purged.
 
 **Customer POST `/appointments`**
 

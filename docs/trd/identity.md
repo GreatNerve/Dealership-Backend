@@ -16,4 +16,4 @@ Login and register each have their own IP Bucket4j bucket (**15 / 60s**). They d
 
 Table `users`: email unique **lowercase**, optional `name` (max 100), password hash (BCrypt), `user_role` enum. No timezone on User or Customer.
 
-`APP_JWT_SECRET` must be at least 32 UTF-8 bytes. The app refuses to start (no zero-padding) if it is shorter.
+`APP_JWT_SECRET` must be at least 32 UTF-8 bytes. The app refuses to start (no zero-padding) if it is shorter. Outside `dev`/`test`, it also refuses the committed default (`local-dev-only-change-me-32bytes-min!!`); set a unique secret.

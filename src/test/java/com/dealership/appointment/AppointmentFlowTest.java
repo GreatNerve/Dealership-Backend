@@ -329,6 +329,103 @@ class AppointmentFlowTest extends AbstractIT {
   }
 
   @Test
+  void replayPendingIsConflict() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    UUID reminderId =
+        jdbc.queryForObject(
+            "SELECT id FROM reminders WHERE appointment_id = ? LIMIT 1", UUID.class, appointmentId);
+    UUID notificationId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO notifications (
+          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
+          attempts, created_at, updated_at)
+        VALUES (?, ?, ?, 1440, ?, CAST('PENDING' AS notification_status), 0, now(), now())
+        """,
+        notificationId,
+        reminderId,
+        appointmentId,
+        "pending-" + notificationId);
+    ResponseEntity<String> replay =
+        http.exchange(
+            "/api/v1/notifications/" + notificationId + "/replay",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(staffToken)),
+            String.class);
+    assertEquals(HttpStatus.CONFLICT, replay.getStatusCode());
+    assertTrue(replay.getBody().contains("REPLAY_NOT_DEAD_LETTER"));
+  }
+
+  @Test
+  void idempotencyKeyIsScopedToUser() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String firstToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    String secondToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID firstVehicle = createVehicle(firstToken, randomPlate("KA"));
+    UUID secondVehicle = createVehicle(secondToken, randomPlate("MH"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    String sharedKey = "shared-" + UUID.randomUUID();
+    HttpHeaders first = bearer(firstToken);
+    first.add("Idempotency-Key", sharedKey);
+    UUID firstAppointment =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(firstVehicle, dealershipId, when),
+                    first),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    HttpHeaders second = bearer(secondToken);
+    second.add("Idempotency-Key", sharedKey);
+    ResponseEntity<AppointmentDtos.AppointmentResponse> created =
+        http.exchange(
+            "/api/v1/appointments",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                """
+                    .formatted(secondVehicle, dealershipId, when),
+                second),
+            AppointmentDtos.AppointmentResponse.class);
+    assertEquals(HttpStatus.CREATED, created.getStatusCode());
+    assertNotEquals(firstAppointment, created.getBody().id());
+  }
+
+  @Test
   void tenHoursOutExpiresTwentyFourHourRowInSql() {
     String staffToken =
         registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
@@ -700,6 +797,8 @@ class AppointmentFlowTest extends AbstractIT {
     assertEquals(customerId, booked.getBody().customerId());
     assertEquals(vehicleId, booked.getBody().vehicleId());
     assertEquals(customerId, booked.getBody().customer().id());
+    assertEquals("Walk In", booked.getBody().customer().name());
+    assertEquals("Walk In", booked.getBody().vehicle().customer().name());
     assertEquals(vehicleId, booked.getBody().vehicle().id());
     assertEquals("Honda", booked.getBody().vehicle().make());
     assertEquals(dealershipId, booked.getBody().dealership().id());
@@ -721,21 +820,24 @@ class AppointmentFlowTest extends AbstractIT {
 
   @Test
   void expiredIdempotencyKeysArePurged() {
+    UUID userId = me(registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER)).id();
     UUID expiredId = UUID.randomUUID();
     UUID liveId = UUID.randomUUID();
     jdbc.update(
         """
         INSERT INTO idempotency_keys
-          (id, key, fingerprint, status, expires_at, created_at, updated_at)
+          (id, user_id, key, fingerprint, status, expires_at, created_at, updated_at)
         VALUES
-          (?, ?, 'expired-fingerprint', 'COMPLETED'::idempotency_status,
+          (?, ?, ?, 'expired-fingerprint', 'COMPLETED'::idempotency_status,
            now() - interval '1 hour', now(), now()),
-          (?, ?, 'live-fingerprint', 'COMPLETED'::idempotency_status,
+          (?, ?, ?, 'live-fingerprint', 'COMPLETED'::idempotency_status,
            now() + interval '1 hour', now(), now())
         """,
         expiredId,
+        userId,
         "expired-" + expiredId,
         liveId,
+        userId,
         "live-" + liveId);
 
     idempotency.purgeExpired();

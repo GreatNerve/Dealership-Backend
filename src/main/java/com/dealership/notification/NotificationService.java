@@ -84,6 +84,10 @@ public class NotificationService {
     if (row.getStatus() == NotificationStatus.SENT) {
       throw ApiException.of(ApiErrorCode.ALREADY_SENT, "Notification already sent");
     }
+    if (row.getStatus() != NotificationStatus.DEAD_LETTER) {
+      throw ApiException.of(
+          ApiErrorCode.REPLAY_NOT_DEAD_LETTER, "Only a dead-lettered Notification can be replayed");
+    }
     var facts = reminders.loadMailFacts(row.getReminderId()).orElseThrow(ApiException::notFound);
     enqueueDue(facts);
   }

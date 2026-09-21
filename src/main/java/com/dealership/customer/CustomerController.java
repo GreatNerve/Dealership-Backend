@@ -104,7 +104,7 @@ public class CustomerController {
                     c.getContact(),
                     names.get(c.getUserId()),
                     byCustomer.getOrDefault(c.getId(), List.of()).stream()
-                        .map(v -> VehicleResponse.from(v, c))
+                        .map(v -> VehicleResponse.from(v, c, names.get(c.getUserId())))
                         .toList())));
   }
 
@@ -115,7 +115,7 @@ public class CustomerController {
     CustomerEntity customer = customers.findById(id).orElseThrow(ApiException::notFound);
     List<VehicleResponse> owned =
         vehicles.findByCustomerIdIn(List.of(id)).stream()
-            .map(v -> VehicleResponse.from(v, customer))
+            .map(v -> VehicleResponse.from(v, customer, nameOf(customer)))
             .toList();
     return new CustomerResponse(customer.getId(), customer.getContact(), nameOf(customer), owned);
   }
@@ -133,7 +133,7 @@ public class CustomerController {
     return PageResponse.of(
         vehicles
             .searchOwn(id, query.like(), pages.pageable(query))
-            .map(v -> VehicleResponse.from(v, customer)));
+            .map(v -> VehicleResponse.from(v, customer, nameOf(customer))));
   }
 
   @PostMapping("/{id}/vehicles")

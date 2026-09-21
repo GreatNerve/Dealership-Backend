@@ -17,7 +17,7 @@ Proof is not a comment. Proof is:
 
 ## Concurrent creates
 
-- Two `POST /appointments` with the **same** Idempotency-Key → one Appointment, one winner 201, the other 201 replay or 409 in-flight — never two Appointments.
+- Two `POST /appointments` with the **same** Idempotency-Key **and User** → one Appointment, one winner 201, the other 201 replay or 409 in-flight — never two Appointments.
 - Two `POST /appointments` for the **same Vehicle**, different keys, cap on (`APP_ONE_CONFIRMED_PER_VEHICLE=true`) → one 201, one 409. One Confirmed row.
 - Cap off (`false`) → both 201. Two Confirmed rows. Index still exists; those rows have `one_confirmed=false`.
 

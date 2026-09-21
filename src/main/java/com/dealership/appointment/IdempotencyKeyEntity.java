@@ -19,7 +19,10 @@ public class IdempotencyKeyEntity {
 
   @Id private UUID id;
 
-  @Column(nullable = false, unique = true)
+  @Column(name = "user_id", nullable = false)
+  private UUID userId;
+
+  @Column(nullable = false)
   private String key;
 
   @Column(nullable = false)
@@ -70,6 +73,14 @@ public class IdempotencyKeyEntity {
 
   public void setKey(String key) {
     this.key = key;
+  }
+
+  public UUID getUserId() {
+    return userId;
+  }
+
+  public void setUserId(UUID userId) {
+    this.userId = userId;
   }
 
   public String getFingerprint() {
