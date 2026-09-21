@@ -4,7 +4,7 @@ The clock is UTC. The payload already carries the offset. Do **not** ask for a C
 
 ## Why (EC2)
 
-Workers may run on EC2 in `us-east-1` while the Customer booked `22:00+05:30` (India). That is not a bug **if** we never use the host timezone: store Instant, compare Instant, format mail with the **Booking Offset** from `scheduledAt`. `ZoneId.systemDefault()` and `LocalDateTime.now()` are forbidden.
+Workers may run on EC2 in `us-east-1` while the Customer booked `22:00+05:30` (India). That is not a bug **if** we never use the host timezone: store Instant, compare Instant, format mail with the **Booking Offset** from `scheduledAt`. `ZoneId.systemDefault()` and `LocalDateTime.now()` are forbidden. JWT `issuedAt` / `expiration` use `TimeProvider.now()`, not a second `Instant.now()`.
 
 ## Persist
 
@@ -128,7 +128,7 @@ The application layer does not load every due row, compute times, and write back
 | No-show | one `UPDATE appointments … WHERE CONFIRMED AND now() >= scheduled_at + interval '1 hour'` |
 | Claim | `SKIP LOCKED` **Claim Batch** (`APP_WORKERS_CLAIM_BATCH=0` auto from CPUs). Floor 18 = 500k/day drain per 500ms poll; max 50 so no `findAll`. Send-window + Confirmed in `WHERE`. Why: [../decision/scale.md](../decision/scale.md) |
 | Mail | After claim, one JOIN returning a **lean projection**. Copy that into outbox `payload` jsonb (replicate what the mail needs). Consumer must not `findById` the full Appointment/Customer/Vehicle/Dealership graph |
-| Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at` |
+| Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at`. List FKs: `appointments.customer_id`, `appointments.dealership_id`, `vehicles.customer_id`, `notifications.appointment_id` / `reminder_id` |
 
 Outbox snapshot fields: appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, customer name (optional), vehicle make/model/year, **Vehicle Number** (mail only, never logged), contact (for SMTP, never logged).
 

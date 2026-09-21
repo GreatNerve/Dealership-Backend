@@ -147,6 +147,33 @@ class AppointmentEndToEndTest extends AbstractIT {
   }
 
   @Test
+  void staffCompleteFreesVehicleAndCustomerCannotComplete() {
+    Shop shop = open("Asia/Kolkata");
+    var created = createCustomerAppointment(shop, future(5, 30), true);
+    ResponseEntity<String> customerTry =
+        http.exchange(
+            "/api/v1/appointments/" + created.id() + "/complete",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(shop.customerToken())),
+            String.class);
+    assertEquals(HttpStatus.FORBIDDEN, customerTry.getStatusCode());
+    ResponseEntity<AppointmentDtos.AppointmentResponse> done =
+        http.exchange(
+            "/api/v1/appointments/" + created.id() + "/complete",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(shop.staffToken())),
+            AppointmentDtos.AppointmentResponse.class);
+    assertEquals(AppointmentStatus.COMPLETED, done.getBody().status());
+    assertEquals(
+        Integer.valueOf(0),
+        jdbc.queryForObject(
+            "SELECT count(*) FROM reminders WHERE appointment_id = ? AND status IN"
+                + " ('PENDING','RETRY_SCHEDULED','PROCESSING')",
+            Integer.class,
+            created.id()));
+  }
+
+  @Test
   void rescheduleCancelsOldRemindersAndOpensNewOffsets() {
     Shop shop = open("Asia/Kolkata");
     var created = createCustomerAppointment(shop, future(5, 30), true);
@@ -220,6 +247,13 @@ class AppointmentEndToEndTest extends AbstractIT {
             new HttpEntity<>(bearer(other)),
             String.class);
     assertEquals(HttpStatus.NOT_FOUND, hidden.getStatusCode());
+    ResponseEntity<String> cannotCancel =
+        http.exchange(
+            "/api/v1/appointments/" + created.id() + "/cancel",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(other)),
+            String.class);
+    assertEquals(HttpStatus.NOT_FOUND, cannotCancel.getStatusCode());
   }
 
   @Test
@@ -236,6 +270,13 @@ class AppointmentEndToEndTest extends AbstractIT {
             new HttpEntity<>(bearer(otherStaff)),
             String.class);
     assertEquals(HttpStatus.NOT_FOUND, hidden.getStatusCode());
+    ResponseEntity<String> cannotCancel =
+        http.exchange(
+            "/api/v1/appointments/" + created.id() + "/cancel",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(otherStaff)),
+            String.class);
+    assertEquals(HttpStatus.NOT_FOUND, cannotCancel.getStatusCode());
   }
 
   @Test

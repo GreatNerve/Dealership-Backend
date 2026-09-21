@@ -19,7 +19,7 @@ alwaysApply: true
 - `APP_JWT_SECRET` ≥ 32 bytes or the process does not start. Non-`dev`/`test` also refuses the committed default secret. `make run` defaults to `dev`; production must omit that profile.
 - Reminder offsets, no-show grace, JWT, workers, pagination, rate limits, and `APP_ONE_CONFIRMED_PER_VEHICLE` from env/config. Status/role columns are PostgreSQL ENUM + Java enum, not `varchar`. Reminder offsets are `APP_REMINDER_OFFSETS` (`24h,2h` default; add `7d`, `6h`) stored as `offset_minutes`, not an enum.
 - Reminder offsets from config. No confirmation mail. Workers 2–4, lease heartbeat. **Claim Batch** auto from CPU count (`APP_WORKERS_CLAIM_BATCH=0`, floor 18 for 500k/day = 10× assignment 50k, max 50). Hikari/Tomcat also auto unless pinned.
-- Shop-floor In Progress/Completed is later. Do not invent it.
+- Shop-floor In Progress is later. Completed is v1. Staff at home Dealership complete, cancel, and reschedule Confirmed visits. Customers cancel and reschedule their own. Customer complete → 403; other shop / other customer → 404. Do not invent In Progress.
 - Never log raw contact, User name, or full **Vehicle Number**. Default Notification Mode is stub. `notify: false` appends `logs/notifications.log`; `notify: true` uses stub or SMTP.
 - Duplicate Reminder prevention must be a unique constraint plus a test, not an application `if`.
 - Store Appointment `scheduled_at` as UTC **and** `display_offset` from `scheduledAt`. No Customer timezone in the payload. Mail/Customer GET use Booking Offset. Staff GET uses Dealership Timezone. JVM UTC so EC2 host zone never leaks. Never print UTC as the only time in mail. Clock math is set-based SQL.

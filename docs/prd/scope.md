@@ -2,7 +2,7 @@
 
 ## Not in v1
 
-- Shop-floor **In Progress** / **Completed**.
+- Shop-floor **In Progress** (check-in / job started). **Completed** is v1.
 - Full privacy matrix (cross-shop history). v1 reads: own / home shop, else 404 — except Staff Customer directory search needed to book.
 - Slot calendars, bay/technician double-booking, payments, WhatsApp, Keycloak/SSO.
 - Kafka, Spring Cloud Gateway, ECS/EKS.
@@ -16,7 +16,7 @@ Cross-shop Appointment history is later. Staff **may** search Customers and thei
 ## Implementation order (same product)
 
 1. **Assignment must-ship:** create Appointment, configured Reminder offsets (default 24h + 2h), due processing, stub send, uniqueness proof, crash/retry/idempotency, tests, **springdoc Swagger UI**, logs, Docker deps. Java: only non-obvious why comments; reuse, no copy-paste ([../trd/code-style.md](../trd/code-style.md)).
-2. **Product v1 after the spine:** JWT, Dealership/Vehicle, dual booking, cancel/reschedule, no-show, Brevo flag, outbox+RabbitMQ, Bucket4j, replay.
+2. **Product v1 after the spine:** JWT, Dealership/Vehicle, dual booking, cancel/reschedule (own or home shop), staff complete, no-show, Brevo flag, outbox+RabbitMQ, Bucket4j, replay.
 3. **Another week:** shop-floor, privacy, second app instance, Keycloak, slot inventory.
 
 ## Deploy

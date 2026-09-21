@@ -2,6 +2,7 @@ package com.dealership.shared.security;
 
 import com.dealership.identity.Role;
 import com.dealership.shared.config.AppProperties;
+import com.dealership.shared.time.TimeProvider;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -16,13 +17,15 @@ import org.springframework.stereotype.Service;
 public class JwtService {
 
   private final AppProperties properties;
+  private final TimeProvider time;
 
-  public JwtService(AppProperties properties) {
+  public JwtService(AppProperties properties, TimeProvider time) {
     this.properties = properties;
+    this.time = time;
   }
 
   public String issue(UUID userId, String email, Role role) {
-    Instant now = Instant.now();
+    Instant now = time.now();
     Instant exp = now.plus(properties.getJwt().getTtl());
     return Jwts.builder()
         .subject(userId.toString())

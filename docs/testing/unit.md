@@ -41,7 +41,8 @@ No Spring context. No containers. Public functions and policies only.
 - Transient vs permanent classification (timeout retry; SMTP auth and `AddressException` / invalid contact do not).
 - Exponential backoff with jitter stays inside min/max.
 - Attempt 5 → dead-letter, no next attempt.
-- JWT secret shorter than 32 bytes is rejected (no zero-pad). Non-`dev`/`test` also rejects the committed default secret.
+- JWT secret shorter than 32 bytes is rejected (no zero-pad). Non-`dev`/`test` also rejects the committed default secret. JWT `iat`/`exp` come from `TimeProvider`, not `Instant.now()`.
+- Optimistic lock (`@Version`) maps to `409 CONCURRENT_UPDATE`.
 - **Claim Batch** `0` (auto) uses CPU count; floor 18 is 500k/day drain math (`500_000/28_800×2×0.5s`); pinned values outside 1–50 are rejected. Hikari `0` is `2×CPUs` (8–32). Tomcat max `0` is `16×CPUs` (50–200). Why: [../decision/scale.md](../decision/scale.md).
 
 ## No-show

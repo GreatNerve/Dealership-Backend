@@ -9,7 +9,7 @@ The assignment needs a working service, tests, a design write-up, and a demo und
 One Spring Boot service:
 
 - Customers register Vehicles and book Appointments at a Dealership.
-- Staff Members book Appointments for a Customer at their **home Dealership only**. They search or create that Customer (and Vehicle) to obtain ids.
+- Staff Members book Appointments for a Customer at their **home Dealership only**. They search or create that Customer (and Vehicle) to obtain ids. They complete, cancel, and reschedule Confirmed visits at that shop. Customers cancel and reschedule their own visits; they cannot mark a visit Completed.
 - Creating an Appointment transactionally creates Reminder rows for each configured offset (default 24h and 2h) unless that window is already past.
 - A durable scheduler finds due Reminders after downtime. Delivery is stub (default) or Brevo SMTP (flag).
 - A Customer never receives the same Reminder twice, proven by database uniqueness and concurrency tests.

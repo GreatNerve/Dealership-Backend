@@ -26,7 +26,7 @@ Ignore [no-push/](no-push/) except the assignment PDF.
 - Staff `GET /appointments/{id}/reminders` (home Dealership): every offset has `offsetMinutes`, `dueAt` (UTC send Instant), and a `notification` object. No row yet → `NOT_SCHEDULED` (not JSON `null`). `lastError` when a row exists. Replay still `POST /notifications/{id}/replay`. No shop-wide Notification list in v1.
 - Reminder offsets, no-show grace, JWT, workers, pagination, rate limits, mail, and the one-Confirmed-per-Vehicle cap come from **config/env**, not Java literals. Closed statuses/roles/`ApiErrorCode` are PostgreSQL + Java enums, not `varchar`. Reminder offsets are a Duration list stored as `offset_minutes`.
 - Format Java with Spotless (`./mvnw spotless:apply`).
-- Shop-floor In Progress/Completed is later.
+- Shop-floor **In Progress** is later. **Completed** is v1. Staff at home Dealership complete, cancel, and reschedule Confirmed visits. Customers cancel and reschedule their own (`POST /appointments/{id}/cancel|reschedule`). Customer complete → 403; other shop / other customer → 404.
 - JWT access token 7 days. `APP_JWT_SECRET` must be at least 32 bytes (start refuses to pad). Non-`dev`/`test` refuses the committed default secret. CORS allows all origins (`APP_CORS_ORIGINS=*`). Idempotency-Key TTL 24h, unique per User. Expired `idempotency_keys` purged at UTC midnight. Notification `idempotency_key` is not TTL-purged.
 - `make run` defaults `SPRING_PROFILES_ACTIVE=dev` (demo seed, local Vehicle cap). Production must omit that profile so V900 seed and the local cap do not run.
 - Do not log raw contact, User name, or full **Vehicle Number**. Default Notification Mode is stub. `notify: false` appends `logs/notifications.log` (ids + wall time); `notify: true` uses stub or SMTP.
@@ -63,4 +63,4 @@ Without make: `docker compose -f docker-compose.deps.yml up -d`, `./mvnw spotles
 
 Pre-commit (`.githooks/pre-commit`, installed by `make hooks`): on commits that touch `src/` or `pom.xml`, runs Spotless then `./mvnw test`. No Python. Docs-only commits skip tests. `git commit --no-verify` bypasses it.
 
-Swagger: `/swagger-ui.html`. Health: `/actuator/health`. Production host: `https://dealership.greatnerve.com`.
+Swagger: `/swagger-ui.html`. Health: `/actuator/health` (public). Prometheus scrape: `/actuator/prometheus` (JWT). Production host: `https://dealership.greatnerve.com`.

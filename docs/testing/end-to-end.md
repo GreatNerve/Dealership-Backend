@@ -38,10 +38,11 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 - Cap on (default): second Confirmed for the same Vehicle → 409. One row remains.
 - `APP_ONE_CONFIRMED_PER_VEHICLE=false`: second Confirmed for the same Vehicle → 201.
 
-## Cancel / reschedule
+## Cancel / reschedule / complete
 
-- Cancel before send → stub never called for those Reminders.
-- Reschedule → old Reminders not sent; new rows from config offsets can be sent.
+- Customer or home-shop Staff cancel before send → stub never called for those Reminders. Other customer / other shop → 404.
+- Customer or home-shop Staff reschedule → old Reminders not sent; new rows from config offsets can be sent.
+- Staff `POST /appointments/{id}/complete` at home Dealership → `COMPLETED`, unsent Reminders cancelled, Vehicle free. Customer complete → 403.
 
 ## Mock Appointment
 
@@ -68,6 +69,8 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 ## Loading / error HTTP
 
 - GET with DB down (or stopped container) → `503 RETRYABLE`, not `200 []` and not a fake empty page.
+- Concurrent cancel/complete → `409 CONCURRENT_UPDATE`.
+- `GET /actuator/prometheus` without JWT → 401. With JWT → Prometheus text including `dealership_appointments_total` (Micrometer name `dealership.appointments.created`; OpenMetrics reserves `_created`). Health stays public and sends `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`.
 
 ## Pagination and search
 

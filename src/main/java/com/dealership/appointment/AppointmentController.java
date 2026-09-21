@@ -93,13 +93,19 @@ public class AppointmentController {
   }
 
   @PostMapping("/{id}/cancel")
-  @Operation(summary = "Cancel a Confirmed Appointment")
+  @Operation(summary = "Cancel a Confirmed Appointment (own or home Dealership)")
   public AppointmentDtos.AppointmentResponse cancel(@PathVariable UUID id) {
     return appointments.cancel(id);
   }
 
+  @PostMapping("/{id}/complete")
+  @Operation(summary = "Mark a Confirmed Appointment completed (Staff)")
+  public AppointmentDtos.AppointmentResponse complete(@PathVariable UUID id) {
+    return appointments.complete(id);
+  }
+
   @PostMapping("/{id}/reschedule")
-  @Operation(summary = "Reschedule a Confirmed Appointment")
+  @Operation(summary = "Reschedule a Confirmed Appointment (own or home Dealership)")
   public AppointmentDtos.AppointmentResponse reschedule(
       @PathVariable UUID id, @Valid @RequestBody AppointmentDtos.RescheduleRequest body) {
     return appointments.reschedule(id, body);

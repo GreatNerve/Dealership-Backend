@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -78,6 +79,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(AccessDeniedException.class)
   public ResponseEntity<ApiResponse<Void>> handleDenied(AccessDeniedException ex) {
     return fail(ApiErrorCode.FORBIDDEN, "Access denied");
+  }
+
+  @ExceptionHandler(OptimisticLockingFailureException.class)
+  public ResponseEntity<ApiResponse<Void>> handleStale(OptimisticLockingFailureException ex) {
+    return fail(ApiErrorCode.CONCURRENT_UPDATE, "This record was changed by another request");
   }
 
   @ExceptionHandler({DataAccessResourceFailureException.class, QueryTimeoutException.class})

@@ -13,6 +13,7 @@ class ApiErrorCodeTest {
     assertEquals(HttpStatus.CONFLICT, ApiErrorCode.ALREADY_SENT.status());
     assertEquals(HttpStatus.CONFLICT, ApiErrorCode.REPLAY_NOT_DEAD_LETTER.status());
     assertEquals("INVALID_TIMEZONE", ApiErrorCode.INVALID_TIMEZONE.name());
-    assertEquals("ALREADY_SENT", ApiErrorCode.ALREADY_SENT.name());
+    assertEquals(HttpStatus.CONFLICT, ApiErrorCode.CONCURRENT_UPDATE.status());
+    assertEquals("CONCURRENT_UPDATE", ApiErrorCode.CONCURRENT_UPDATE.name());
   }
 }

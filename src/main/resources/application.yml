@@ -59,15 +59,27 @@ spring:
       mail.smtp.timeout: ${APP_MAIL_TIMEOUT_MS:20000}
       mail.smtp.writetimeout: ${APP_MAIL_TIMEOUT_MS:20000}
 management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
   endpoints:
     web:
       exposure:
-        include: health,info
+        include:
+          - health
+          - info
+          - metrics
+          - prometheus
   endpoint:
     health:
       probes:
         enabled: true
       show-details: when_authorized
+    metrics:
+      access: read_only
+    prometheus:
+      access: read_only
   health:
     livenessstate:
       enabled: true

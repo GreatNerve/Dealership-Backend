@@ -8,7 +8,7 @@ Front door: [../../README.md](../../README.md). Terms: [CONTEXT.md](../../CONTEX
 | --- | --- | --- |
 | Rules | [principles.md](principles.md) | Behaviour, not internals. Stub is observable. Rate limits off by default. |
 | Unit | [unit.md](unit.md) | Parse/format, fingerprints, backoff, one-per-Vehicle policy. Clock SQL is integration. |
-| Integration | [integration.md](integration.md) | Postgres constraints, Flyway, idempotency rows, cancel/reschedule, no-show job. |
+| Integration | [integration.md](integration.md) | Postgres constraints, Flyway, idempotency rows, cancel/reschedule/complete, no-show job. |
 | End-to-end | [end-to-end.md](end-to-end.md) | HTTP → Appointment → Reminders → due work → stub send → DB. JUnit under `src/test/java/com/dealership/e2e/`. |
 | Uniqueness | [uniqueness-and-concurrency.md](uniqueness-and-concurrency.md) | Assignment hard line: never the same Reminder twice, under two workers. |
 | Harness | [harness.md](harness.md) | Recording stub, Testcontainers, clocks, seed, profiles. |

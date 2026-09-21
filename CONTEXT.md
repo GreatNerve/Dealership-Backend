@@ -55,16 +55,16 @@ The **Appointment** is booked and still in the future (or not yet expired). It i
 _Avoid_: Scheduled, pending, booked (use Confirmed)
 
 **Cancelled**:
-The **Appointment** was voided while **Confirmed**. It no longer blocks the **Vehicle**.
+The **Appointment** was voided while **Confirmed** (Customer own, or Staff at the home Dealership). It no longer blocks the **Vehicle**.
 _Avoid_: Deleted, void
 
 **No-Show Expired**:
 The **Appointment** was still **Confirmed** at `scheduledAt + 1 hour`. The system expired it. The **Vehicle** may be rebooked.
 _Avoid_: Missed, expired (say No-Show Expired), completed
 
-**Completed** (later):
-Shop-floor “work is done”. Not a v1 status.
-_Avoid_: Using Completed in v1 APIs
+**Completed**:
+Staff marked the visit done at the home Dealership. It no longer blocks the **Vehicle**. Unsent Reminders are cancelled. Not cancel.
+_Avoid_: Done, closed, finished (say Completed)
 
 **In Progress** (later):
 Shop-floor “job started”. Not a v1 status.

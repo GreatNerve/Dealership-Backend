@@ -18,6 +18,7 @@ Useful:
 - Why Idempotency Key purge cron is UTC midnight (EC2 host zone must not pick local midnight).
 - Why JSON strings use a Jackson deserializer and query/form/header strings use `@InitBinder` (two HTTP pipelines, one `Inputs`).
 - Why security 401/403 write JSON in the filter (that path never reaches `GlobalExceptionHandler`).
+- Why CSP allows `'unsafe-inline'` script/style (springdoc Swagger UI).
 - Why the rate-limit Redis key includes method + path with UUID segments collapsed (per endpoint, not one global IP/user bucket; ids must not split `GET /appointments/{id}`).
 - Why Appointment list enrichment is `findAllById` after the page, not `JOIN FETCH` (entities store UUID FKs; `JOIN FETCH` + `Page` is the Hibernate cartesian trap). The Customer `JOIN` on `vehicles.customer_id` is ownership in SQL, not a fetch of the nested JSON.
 

@@ -51,6 +51,21 @@ public class SecurityConfig {
   @Bean
   SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http.csrf(csrf -> csrf.disable())
+        .headers(
+            headers ->
+                headers
+                    .contentTypeOptions(Customizer.withDefaults())
+                    .frameOptions(frame -> frame.deny())
+                    .httpStrictTransportSecurity(
+                        hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
+                    // springdoc Swagger UI ships inline script and style
+                    .contentSecurityPolicy(
+                        csp ->
+                            csp.policyDirectives(
+                                "default-src 'self'; frame-ancestors 'none'; base-uri 'self';"
+                                    + " form-action 'self'; script-src 'self' 'unsafe-inline';"
+                                    + " style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+                                    + " connect-src 'self'; font-src 'self'")))
         .cors(Customizer.withDefaults())
         .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(

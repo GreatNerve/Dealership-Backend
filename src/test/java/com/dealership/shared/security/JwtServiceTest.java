@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dealership.identity.Role;
 import com.dealership.shared.config.AppProperties;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,7 @@ class JwtServiceTest {
   void shortSecretIsRejected() {
     AppProperties properties = new AppProperties();
     properties.getJwt().setSecret("too-short");
-    JwtService jwt = new JwtService(properties);
+    JwtService jwt = new JwtService(properties, Instant::now);
     assertThrows(
         IllegalStateException.class, () -> jwt.issue(UUID.randomUUID(), "a@b.com", Role.CUSTOMER));
   }

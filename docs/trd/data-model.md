@@ -22,7 +22,7 @@ Closed sets are **PostgreSQL ENUM** types (and matching Java enums). Not `varcha
 | PG type | Values |
 | --- | --- |
 | `user_role` | `CUSTOMER`, `DEALERSHIP_STAFF` |
-| `appointment_status` | `CONFIRMED`, `CANCELLED`, `NO_SHOW_EXPIRED` |
+| `appointment_status` | `CONFIRMED`, `CANCELLED`, `COMPLETED`, `NO_SHOW_EXPIRED` |
 | `idempotency_status` | `STARTED`, `COMPLETED` |
 | `reminder_status` | `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `SENT`, `DEAD_LETTER`, `CANCELLED`, `EXPIRED` |
 | `notification_status` | `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `SENT`, `DEAD_LETTER`, `CANCELLED` |
@@ -39,4 +39,10 @@ Partial indexes (due-work burst):
 
 - `reminders (scheduled_at)` WHERE `status IN ('PENDING','RETRY_SCHEDULED')`
 - `appointments (scheduled_at)` WHERE `status = 'CONFIRMED'` (no-show job)
+
+List/FK indexes (page GETs; Postgres does not index FKs by itself):
+
+- `appointments (customer_id)`, `appointments (dealership_id)`
+- `vehicles (customer_id)`
+- `notifications (appointment_id)`, `notifications (reminder_id)`
 

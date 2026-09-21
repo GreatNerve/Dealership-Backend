@@ -49,6 +49,7 @@ docker compose up -d --build
 - API: http://localhost:8080/api/v1
 - Swagger: http://localhost:8080/swagger-ui.html
 - Health: http://localhost:8080/actuator/health
+- Prometheus (JWT): http://localhost:8080/actuator/prometheus
 
 Demo login (`dev` profile): `staff@demo.local` / `password` and `customer@demo.local` / `password`.
 

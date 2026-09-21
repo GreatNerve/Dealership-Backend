@@ -5,14 +5,14 @@
 | Actor | Meaning |
 | --- | --- |
 | User | Login identity. Either a Customer or a Staff Member in v1, not both. |
-| Customer | Owns Vehicles; self-books any Dealership. |
-| Staff Member | Books on behalf of a Customer at home Dealership only. |
+| Customer | Owns Vehicles; self-books any Dealership. Cancels and reschedules own Confirmed visits. |
+| Staff Member | Books on behalf of a Customer at home Dealership only. Completes, cancels, and reschedules Confirmed visits there. |
 | System | Expires no-shows; claims due work; retries Notifications. |
 
 ## Stories
 
 1. As a Customer, I want to register and log in, so that my bookings are mine.
-2. As a Staff Member, I want to register and log in, so that I can book for walk-in Customers.
+2. As a Staff Member, I want to register and log in, so that I can book, complete, cancel, and reschedule visits at my home Dealership.
 3. As a Staff Member, I want to create a walk-in Customer User, so that they exist before I allot an Appointment.
 4. As a caller, I want login and register each rate-limited on their own endpoint (15 / 60s), so that brute force fails without locking a reviewer out for minutes.
 

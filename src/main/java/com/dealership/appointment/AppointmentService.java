@@ -194,17 +194,13 @@ public class AppointmentService {
 
   @Transactional
   public AppointmentDtos.AppointmentResponse cancel(UUID id) {
-    AuthPrincipal user = CurrentUser.require();
-    VisibleRow row = loadVisible(id, user);
-    AppointmentEntity appointment = row.appointment();
-    if (appointment.getStatus() != AppointmentStatus.CONFIRMED) {
-      throw ApiException.of(
-          ApiErrorCode.NOT_CONFIRMED, "Only a Confirmed Appointment can be cancelled");
-    }
-    appointment.setStatus(AppointmentStatus.CANCELLED);
-    appointments.save(appointment);
-    reminders.cancelUnsent(appointment.getId());
-    return toResponse(row, user.role());
+    return closeConfirmed(id, AppointmentStatus.CANCELLED, "cancelled");
+  }
+
+  @Transactional
+  public AppointmentDtos.AppointmentResponse complete(UUID id) {
+    requireStaff();
+    return closeConfirmed(id, AppointmentStatus.COMPLETED, "completed");
   }
 
   @Transactional
@@ -310,6 +306,14 @@ public class AppointmentService {
 
   private record VisibleRow(
       AppointmentEntity appointment, CustomerEntity customer, DealershipEntity shop) {}
+
+  private AuthPrincipal requireStaff() {
+    AuthPrincipal user = CurrentUser.require();
+    if (user.role() != Role.DEALERSHIP_STAFF) {
+      throw ApiException.forbidden("Only staff can complete an Appointment");
+    }
+    return user;
+  }
 
   private VisibleRow loadVisible(UUID id, AuthPrincipal user) {
     if (user.role() == Role.CUSTOMER) {
@@ -436,6 +440,21 @@ public class AppointmentService {
 
   private String nameOf(CustomerEntity customer) {
     return users.findById(customer.getUserId()).map(UserEntity::getName).orElse(null);
+  }
+
+  private AppointmentDtos.AppointmentResponse closeConfirmed(
+      UUID id, AppointmentStatus next, String verb) {
+    AuthPrincipal user = CurrentUser.require();
+    VisibleRow row = loadVisible(id, user);
+    AppointmentEntity appointment = row.appointment();
+    if (appointment.getStatus() != AppointmentStatus.CONFIRMED) {
+      throw ApiException.of(
+          ApiErrorCode.NOT_CONFIRMED, "Only a Confirmed Appointment can be " + verb);
+    }
+    appointment.setStatus(next);
+    appointments.save(appointment);
+    reminders.cancelUnsent(appointment.getId());
+    return toResponse(row, user.role());
   }
 
   private Map<UUID, String> namesByUserId(Iterable<CustomerEntity> rows) {

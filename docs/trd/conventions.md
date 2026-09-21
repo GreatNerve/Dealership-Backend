@@ -26,7 +26,7 @@ Every `/api/v1` JSON body uses one envelope so a frontend can branch on `success
 }
 ```
 
-HTTP status still matches the error (400/401/403/404/409/429/503). 401 and 403 from the security filter use this same body (never an empty payload). Exception: Swagger Authorize form `POST /auth/login` stays `{ access_token, token_type, expires_in }` so OAuth2 password flow works.
+HTTP status still matches the error (400/401/403/404/409/429/503). 401 and 403 from the security filter use this same body (never an empty payload). Concurrent Appointment writes (`@Version`) are `409 CONCURRENT_UPDATE`. Exception: Swagger Authorize form `POST /auth/login` stays `{ access_token, token_type, expires_in }` so OAuth2 password flow works.
 
 **Loading / dependency failure:** list/get must not hang without a timeout. On DB/broker outage return `503` with `RETRYABLE`. Never return an empty `200` that looks like “no rows” when the read failed.
 

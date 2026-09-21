@@ -15,5 +15,6 @@
 | Completing after lease lost | `markSent` / `markDead` / `markRetry` no-op if not live `PROCESSING` |
 | Max attempts | DEAD_LETTER, metric |
 | Cancel vs send race | Documented; possible one extra send |
+| Concurrent cancel/complete | 409 `CONCURRENT_UPDATE` (`@Version`) |
 | Rate limit | 429 + headers |
 | DB down on GET | 503 RETRYABLE, not fake empty list |

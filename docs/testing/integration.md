@@ -28,8 +28,9 @@ These tests prove the **database is the ledger**.
 
 ## Lifecycle
 
-- Cancel Confirmed → Appointment Cancelled; pending Reminders Cancelled; SENT rows untouched.
-- Reschedule → Reminders `MAX(schedule_version)+1`; old Reminders Cancelled; new Reminder rows via SQL interval; unique key uses new version; `display_offset` from the new `scheduledAt`. Appointment has no `schedule_version`.
+- Customer or home-shop Staff cancel Confirmed → Appointment Cancelled; pending Reminders Cancelled; SENT rows untouched. Other customer / other shop → 404. Concurrent cancel/complete on the same row → `409 CONCURRENT_UPDATE` (optimistic `version`), not 500.
+- Staff complete Confirmed → Appointment `COMPLETED`; pending Reminders Cancelled; Vehicle not Blocking. Customer → 403.
+- Customer or home-shop Staff reschedule → Reminders `MAX(schedule_version)+1`; old Reminders Cancelled; new Reminder rows via SQL interval; unique key uses new version; `display_offset` from the new `scheduledAt`. Appointment has no `schedule_version`.
 ## Clock SQL (set-based)
 
 - Create: 24h Reminder `scheduled_at` equals `appointment.scheduled_at - interval '24 hours'` (and 2h likewise). Assert in SQL/Testcontainers, not Java minus.

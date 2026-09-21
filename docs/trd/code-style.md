@@ -97,7 +97,7 @@ Not new product — implementation defaults so we do not invent them in code:
 - Passwords: Spring `PasswordEncoder` (BCrypt). Never store or log raw passwords.
 - Email unique **normalized** (`Inputs.email`: sanitize + lowercase) so `A@x.com` and `a@x.com` collide.
 - **Vehicle Number** unique **normalized** (`Inputs.sanitize`, then uppercase, strip spaces/hyphens). Search/logs still never use the full plate.
-- `@Transactional` on Appointment create/reschedule/cancel (Appointment + Reminders + idempotency).
+- `@Transactional` on Appointment create/reschedule/cancel/complete (Appointment + Reminders + idempotency).
 - Correlation id: request header or new UUID; MDC; error body. One filter.
 - Bean Validation on records; one 400 shape.
 - Flyway owns schema; no Hibernate `update`.
