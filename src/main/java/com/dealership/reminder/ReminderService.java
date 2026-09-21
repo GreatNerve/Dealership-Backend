@@ -29,12 +29,17 @@ public class ReminderService {
   }
 
   public void insertForAppointment(UUID appointmentId) {
+    int version = reminders.nextScheduleVersion(appointmentId);
     List<Integer> offsets = new ArrayList<>(properties.getReminders().offsetMinutes());
     offsets.sort(Comparator.reverseOrder());
     for (int i = 0; i < offsets.size(); i++) {
       Integer next = i + 1 < offsets.size() ? offsets.get(i + 1) : null;
-      reminders.insertForAppointment(appointmentId, offsets.get(i), next);
+      reminders.insertForAppointment(appointmentId, offsets.get(i), next, version);
     }
+  }
+
+  public List<ReminderRepository.ReminderRow> currentVersion(UUID appointmentId) {
+    return reminders.listCurrentVersion(appointmentId);
   }
 
   public void cancelUnsent(UUID appointmentId) {

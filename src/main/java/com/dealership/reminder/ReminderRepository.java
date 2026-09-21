@@ -43,7 +43,7 @@ public class ReminderRepository {
   }
 
   public void insertForAppointment(
-      UUID appointmentId, int offsetMinutes, Integer nextOffsetMinutes) {
+      UUID appointmentId, int offsetMinutes, Integer nextOffsetMinutes, int scheduleVersion) {
     jdbc.update(
         """
         INSERT INTO reminders (
@@ -52,7 +52,7 @@ public class ReminderRepository {
         SELECT gen_random_uuid(),
                a.id,
                :offsetMinutes,
-               a.schedule_version,
+               :scheduleVersion,
                a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
                CASE
                  WHEN now() >=
@@ -78,8 +78,43 @@ public class ReminderRepository {
             .addValue("appointmentId", appointmentId)
             .addValue("offsetMinutes", offsetMinutes)
             .addValue("nextOffsetMinutes", nextOffsetMinutes, Types.INTEGER)
+            .addValue("scheduleVersion", scheduleVersion)
             .addValue("expired", ReminderStatus.EXPIRED.name())
             .addValue("pending", ReminderStatus.PENDING.name()));
+  }
+
+  public int nextScheduleVersion(UUID appointmentId) {
+    Integer next =
+        jdbc.queryForObject(
+            """
+            SELECT COALESCE(MAX(schedule_version), 0) + 1
+            FROM reminders
+            WHERE appointment_id = :appointmentId
+            """,
+            new MapSqlParameterSource().addValue("appointmentId", appointmentId),
+            Integer.class);
+    return next == null ? 1 : next;
+  }
+
+  public List<ReminderRow> listCurrentVersion(UUID appointmentId) {
+    return jdbc.query(
+        """
+        SELECT id, offset_minutes, scheduled_at, status
+        FROM reminders
+        WHERE appointment_id = :appointmentId
+          AND schedule_version = (
+            SELECT COALESCE(MAX(schedule_version), 0)
+            FROM reminders
+            WHERE appointment_id = :appointmentId)
+        ORDER BY offset_minutes DESC
+        """,
+        new MapSqlParameterSource().addValue("appointmentId", appointmentId),
+        (rs, i) ->
+            new ReminderRow(
+                rs.getObject("id", UUID.class),
+                rs.getInt("offset_minutes"),
+                rs.getTimestamp("scheduled_at").toInstant(),
+                ReminderStatus.valueOf(rs.getString("status"))));
   }
 
   public void cancelUnsent(UUID appointmentId) {
@@ -159,7 +194,6 @@ public class ReminderRepository {
             UPDATE reminders
             SET status = CAST(:processing AS reminder_status),
                 locked_by = :worker,
-                locked_at = now(),
                 lease_expires_at = now() + CAST(:lease AS interval),
                 updated_at = now()
             WHERE id = (
@@ -257,7 +291,6 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
             UPDATE reminders
             SET locked_by = :worker,
                 lease_expires_at = now() + CAST(:lease AS interval),
-                locked_at = now(),
                 updated_at = now()
             WHERE id = :id AND status = CAST(:processing AS reminder_status)
             """,
@@ -269,55 +302,73 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
     return updated == 1;
   }
 
-  public void markSent(UUID reminderId) {
-    jdbc.update(
-        """
-        UPDATE reminders
-        SET status = CAST(:sent AS reminder_status), locked_by = NULL, lease_expires_at = NULL,
-            updated_at = now()
-        WHERE id = :id
-        """,
-        new MapSqlParameterSource()
-            .addValue("id", reminderId)
-            .addValue("sent", ReminderStatus.SENT.name()));
+  public boolean markSent(UUID reminderId) {
+    int updated =
+        jdbc.update(
+            """
+            UPDATE reminders
+            SET status = CAST(:sent AS reminder_status), locked_by = NULL, lease_expires_at = NULL,
+                updated_at = now()
+            WHERE id = :id
+              AND status = CAST(:processing AS reminder_status)
+              AND lease_expires_at IS NOT NULL
+              AND lease_expires_at > now()
+            """,
+            new MapSqlParameterSource()
+                .addValue("id", reminderId)
+                .addValue("sent", ReminderStatus.SENT.name())
+                .addValue("processing", ReminderStatus.PROCESSING.name()));
+    return updated == 1;
   }
 
-  public void markRetry(UUID reminderId, Instant nextAttempt, String error) {
-    jdbc.update(
-        """
-        UPDATE reminders
-        SET status = CAST(:retry AS reminder_status),
-            attempts = attempts + 1,
-            next_attempt_at = :next,
-            last_error = :error,
-            locked_by = NULL,
-            lease_expires_at = NULL,
-            updated_at = now()
-        WHERE id = :id
-        """,
-        new MapSqlParameterSource()
-            .addValue("id", reminderId)
-            .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
-            .addValue("next", Timestamp.from(nextAttempt))
-            .addValue("error", truncate(error)));
+  public boolean markRetry(UUID reminderId, Instant nextAttempt, String error) {
+    int updated =
+        jdbc.update(
+            """
+            UPDATE reminders
+            SET status = CAST(:retry AS reminder_status),
+                attempts = attempts + 1,
+                next_attempt_at = :next,
+                last_error = :error,
+                locked_by = NULL,
+                lease_expires_at = NULL,
+                updated_at = now()
+            WHERE id = :id
+              AND status = CAST(:processing AS reminder_status)
+              AND lease_expires_at IS NOT NULL
+              AND lease_expires_at > now()
+            """,
+            new MapSqlParameterSource()
+                .addValue("id", reminderId)
+                .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
+                .addValue("processing", ReminderStatus.PROCESSING.name())
+                .addValue("next", Timestamp.from(nextAttempt))
+                .addValue("error", truncate(error)));
+    return updated == 1;
   }
 
-  public void markDead(UUID reminderId, String error) {
-    jdbc.update(
-        """
-        UPDATE reminders
-        SET status = CAST(:dead AS reminder_status),
-            attempts = attempts + 1,
-            last_error = :error,
-            locked_by = NULL,
-            lease_expires_at = NULL,
-            updated_at = now()
-        WHERE id = :id
-        """,
-        new MapSqlParameterSource()
-            .addValue("id", reminderId)
-            .addValue("dead", ReminderStatus.DEAD_LETTER.name())
-            .addValue("error", truncate(error)));
+  public boolean markDead(UUID reminderId, String error) {
+    int updated =
+        jdbc.update(
+            """
+            UPDATE reminders
+            SET status = CAST(:dead AS reminder_status),
+                attempts = attempts + 1,
+                last_error = :error,
+                locked_by = NULL,
+                lease_expires_at = NULL,
+                updated_at = now()
+            WHERE id = :id
+              AND status = CAST(:processing AS reminder_status)
+              AND lease_expires_at IS NOT NULL
+              AND lease_expires_at > now()
+            """,
+            new MapSqlParameterSource()
+                .addValue("id", reminderId)
+                .addValue("dead", ReminderStatus.DEAD_LETTER.name())
+                .addValue("processing", ReminderStatus.PROCESSING.name())
+                .addValue("error", truncate(error)));
+    return updated == 1;
   }
 
   private static String toPgInterval(Duration lease) {
@@ -330,6 +381,8 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
     }
     return error.length() <= 1024 ? error : error.substring(0, 1024);
   }
+
+  public record ReminderRow(UUID id, int offsetMinutes, Instant dueAt, ReminderStatus status) {}
 
   public record ClaimedReminder(
       UUID id,

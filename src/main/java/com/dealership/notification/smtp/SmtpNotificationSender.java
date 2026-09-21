@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.MailAuthenticationException;
-import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
@@ -44,9 +43,10 @@ public class SmtpNotificationSender implements NotificationSender {
           snapshot.appointmentId());
     } catch (MailAuthenticationException ex) {
       throw new NotificationFailedException("smtp auth failed", true, ex);
-    } catch (MailSendException ex) {
-      throw new NotificationFailedException("smtp send failed", true, ex);
     } catch (Exception ex) {
+      if (SmtpFailures.invalidContact(ex)) {
+        throw new NotificationFailedException("invalid contact", false, ex);
+      }
       throw new NotificationFailedException("smtp failed", true, ex);
     }
   }

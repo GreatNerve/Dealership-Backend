@@ -16,7 +16,7 @@
 - 2–4 mail workers (default 2), prefetch 1 each, 30s lease with heartbeat (slow SMTP must not double-send).
 - Notification/outbox only when the Reminder is due.
 - SMTP failures (auth, timeout, 5xx) retry the same Notification key, exponential backoff + jitter (**30s**, then **60s / 2 min / 4 min**, cap **5 minutes**), max **5** attempts, then `DEAD_LETTER`. Invalid contact is permanent (no retry).
-- Mail Replay uses the same notification idempotency key.
+- Replay is Staff, home Dealership of that Appointment, else 404. Same notification idempotency key.
 - Reminder = schedule. Notification = delivery. Do not collapse them.
 - Staff mail status is `GET /appointments/{id}/reminders` (home Dealership, else 404). Not a shop-wide Notification list in v1. Not on Appointment list GET. Customer does not see `lastError`.
 - Every Reminder item **always** includes a `notification` object. A Notification **row** exists only after the Reminder is due. Until then status is **Not Scheduled** (`NOT_SCHEDULED`), `id` is null — not a send failure, not JSON `null`.

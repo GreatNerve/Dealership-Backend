@@ -102,6 +102,10 @@ public class NotificationEntity {
     return reminderId;
   }
 
+  public UUID getAppointmentId() {
+    return appointmentId;
+  }
+
   public void setReminderId(UUID reminderId) {
     this.reminderId = reminderId;
   }
@@ -124,5 +128,21 @@ public class NotificationEntity {
 
   public void setStatus(NotificationStatus status) {
     this.status = status;
+  }
+
+  public int getAttempts() {
+    return attempts;
+  }
+
+  public String getLastError() {
+    return lastError;
+  }
+
+  public Instant getSentAt() {
+    return sentAt;
+  }
+
+  public Instant getNextAttemptAt() {
+    return nextAttemptAt;
   }
 }

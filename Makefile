@@ -40,7 +40,7 @@ deps:
 	docker compose -f docker-compose.deps.yml up -d
 
 run: deps
-	set -a && [ -f .env ] && . ./.env; set +a && $(MVNW) spring-boot:run
+	set -a && [ -f .env ] && . ./.env; set +a && SPRING_PROFILES_ACTIVE=$${SPRING_PROFILES_ACTIVE:-dev} $(MVNW) spring-boot:run
 
 stop:
 	@pids=""; \

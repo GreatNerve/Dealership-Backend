@@ -63,7 +63,9 @@ public class MailWorker {
             TimeUnit.SECONDS);
     try {
       if (notifications.alreadySent(snapshot.idempotencyKey())) {
-        reminders.markSent(snapshot.reminderId());
+        if (!reminders.markSent(snapshot.reminderId())) {
+          log.info("skip complete, reminder lease lost");
+        }
         return;
       }
       if (!reminders.heartbeat(
@@ -77,17 +79,26 @@ public class MailWorker {
       } else {
         sender.send(snapshot);
       }
-      reminders.markSent(snapshot.reminderId());
+      if (!reminders.markSent(snapshot.reminderId())) {
+        log.info("skip complete, reminder lease lost");
+        return;
+      }
       notifications.markSent(snapshot.idempotencyKey());
       log.info("notification sent offset={}", snapshot.offsetLabel());
     } catch (NotificationFailedException ex) {
       int attempt = snapshot.attempts() + 1;
       if (RetryPolicy.permanent(ex) || RetryPolicy.deadLetter(attempt)) {
-        reminders.markDead(snapshot.reminderId(), ex.getMessage());
+        if (!reminders.markDead(snapshot.reminderId(), ex.getMessage())) {
+          log.info("skip complete, reminder lease lost");
+          return;
+        }
         notifications.markDead(snapshot.idempotencyKey(), ex.getMessage());
       } else {
         var next = RetryPolicy.nextAttempt(time.now(), attempt);
-        reminders.markRetry(snapshot.reminderId(), next, ex.getMessage());
+        if (!reminders.markRetry(snapshot.reminderId(), next, ex.getMessage())) {
+          log.info("skip complete, reminder lease lost");
+          return;
+        }
         notifications.markRetry(snapshot.idempotencyKey(), next, ex.getMessage());
       }
       log.warn(

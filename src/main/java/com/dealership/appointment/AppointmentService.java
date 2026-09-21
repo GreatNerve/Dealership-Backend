@@ -9,6 +9,11 @@ import com.dealership.dealership.DealershipRepository;
 import com.dealership.dealership.DealershipStaffEntity;
 import com.dealership.dealership.DealershipStaffRepository;
 import com.dealership.identity.Role;
+import com.dealership.identity.UserEntity;
+import com.dealership.identity.UserRepository;
+import com.dealership.notification.NotificationEntity;
+import com.dealership.notification.NotificationRepository;
+import com.dealership.reminder.ReminderRepository;
 import com.dealership.reminder.ReminderService;
 import com.dealership.shared.access.ResourceAccess;
 import com.dealership.shared.api.ApiErrorCode;
@@ -25,6 +30,8 @@ import com.dealership.shared.time.TimeProvider;
 import com.dealership.vehicle.VehicleDtos;
 import com.dealership.vehicle.VehicleEntity;
 import com.dealership.vehicle.VehicleRepository;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,9 +53,11 @@ public class AppointmentService {
   private final AppointmentRepository appointments;
   private final VehicleRepository vehicles;
   private final CustomerRepository customers;
+  private final UserRepository users;
   private final DealershipRepository dealerships;
   private final DealershipStaffRepository staff;
   private final ReminderService reminders;
+  private final NotificationRepository notifications;
   private final IdempotencyService idempotency;
   private final TimeProvider time;
   private final PageQueries pages;
@@ -58,9 +67,11 @@ public class AppointmentService {
       AppointmentRepository appointments,
       VehicleRepository vehicles,
       CustomerRepository customers,
+      UserRepository users,
       DealershipRepository dealerships,
       DealershipStaffRepository staff,
       ReminderService reminders,
+      NotificationRepository notifications,
       IdempotencyService idempotency,
       TimeProvider time,
       PageQueries pages,
@@ -68,9 +79,11 @@ public class AppointmentService {
     this.appointments = appointments;
     this.vehicles = vehicles;
     this.customers = customers;
+    this.users = users;
     this.dealerships = dealerships;
     this.staff = staff;
     this.reminders = reminders;
+    this.notifications = notifications;
     this.idempotency = idempotency;
     this.time = time;
     this.pages = pages;
@@ -155,7 +168,6 @@ public class AppointmentService {
     appointment.setStatus(AppointmentStatus.CONFIRMED);
     appointment.setCreatedByUserId(user.userId());
     appointment.setCreatedByRole(user.role());
-    appointment.setScheduleVersion(1);
     appointment.setNotify(notify);
     appointment.setOneConfirmed(properties.getAppointments().isOneConfirmedPerVehicle());
     try {
@@ -167,10 +179,10 @@ public class AppointmentService {
     }
     reminders.insertForAppointment(appointment.getId());
     MDC.put("appointment_id", appointment.getId().toString());
-    log.info("appointment created schedule_version={}", appointment.getScheduleVersion());
+    log.info("appointment created");
     MDC.remove("appointment_id");
     AppointmentDtos.AppointmentResponse response =
-        toResponse(appointment, customer, vehicle, shop, user.role());
+        toResponse(appointment, customer, vehicle, shop, user.role(), nameOf(customer));
     idempotency.complete(idempotencyRow, appointment.getId(), response);
     return response;
   }
@@ -207,7 +219,6 @@ public class AppointmentService {
     reminders.cancelUnsent(appointment.getId());
     appointment.setScheduledAt(booking.utc());
     appointment.setDisplayOffset(booking.displayOffset().getId());
-    appointment.setScheduleVersion(appointment.getScheduleVersion() + 1);
     appointments.saveAndFlush(appointment);
     reminders.insertForAppointment(appointment.getId());
     return toResponse(row, user.role());
@@ -217,6 +228,42 @@ public class AppointmentService {
   public AppointmentDtos.AppointmentResponse get(UUID id) {
     AuthPrincipal user = CurrentUser.require();
     return toResponse(loadVisible(id, user), user.role());
+  }
+
+  @Transactional(readOnly = true)
+  public List<AppointmentDtos.ReminderItem> reminders(UUID id) {
+    AuthPrincipal user = CurrentUser.require();
+    if (user.role() != Role.DEALERSHIP_STAFF) {
+      throw ApiException.forbidden("Only staff can read Reminders");
+    }
+    loadVisible(id, user);
+    List<ReminderRepository.ReminderRow> rows = reminders.currentVersion(id);
+    Map<UUID, NotificationEntity> notes =
+        rows.isEmpty()
+            ? Map.of()
+            : notifications
+                .findByReminderIdIn(rows.stream().map(ReminderRepository.ReminderRow::id).toList())
+                .stream()
+                .collect(Collectors.toMap(NotificationEntity::getReminderId, Function.identity()));
+    List<AppointmentDtos.ReminderItem> items = new ArrayList<>();
+    for (ReminderRepository.ReminderRow row : rows) {
+      NotificationEntity note = notes.get(row.id());
+      items.add(
+          new AppointmentDtos.ReminderItem(
+              row.offsetMinutes(),
+              row.dueAt(),
+              row.status(),
+              note == null
+                  ? AppointmentDtos.NotificationView.notScheduled()
+                  : new AppointmentDtos.NotificationView(
+                      note.getId(),
+                      note.getStatus(),
+                      note.getAttempts(),
+                      note.getLastError(),
+                      note.getSentAt(),
+                      note.getNextAttemptAt())));
+    }
+    return items;
   }
 
   @Transactional(readOnly = true)
@@ -312,6 +359,7 @@ public class AppointmentService {
                 dealerships.findAllById(
                     rows.stream().map(AppointmentEntity::getDealershipId).distinct().toList()),
                 DealershipEntity::getId);
+    Map<UUID, String> names = namesByUserId(byCustomer.values());
     return PageResponse.of(
         page.map(
             a ->
@@ -320,7 +368,8 @@ public class AppointmentService {
                     require(byCustomer.get(a.getCustomerId())),
                     require(byVehicle.get(a.getVehicleId())),
                     require(byShop.get(a.getDealershipId())),
-                    viewer)));
+                    viewer,
+                    names.get(require(byCustomer.get(a.getCustomerId())).getUserId()))));
   }
 
   private static <T> Map<UUID, T> byId(List<T> rows, Function<T, UUID> id) {
@@ -348,7 +397,7 @@ public class AppointmentService {
             : dealerships
                 .findById(appointment.getDealershipId())
                 .orElseThrow(ApiException::notFound);
-    return toResponse(appointment, customer, vehicle, shop, viewer);
+    return toResponse(appointment, customer, vehicle, shop, viewer, nameOf(customer));
   }
 
   private AppointmentDtos.AppointmentResponse toResponse(
@@ -356,7 +405,8 @@ public class AppointmentService {
       CustomerEntity customer,
       VehicleEntity vehicle,
       DealershipEntity shop,
-      Role viewer) {
+      Role viewer,
+      String customerName) {
     String local =
         viewer == Role.DEALERSHIP_STAFF
             ? BookingTimes.formatStaffLocal(appointment.getScheduledAt(), shop.getTimezone())
@@ -368,7 +418,7 @@ public class AppointmentService {
         appointment.getCustomerId(),
         appointment.getVehicleId(),
         appointment.getDealershipId(),
-        CustomerDtos.CustomerSummary.from(customer),
+        CustomerDtos.CustomerSummary.from(customer, customerName),
         VehicleDtos.VehicleResponse.from(vehicle, customer),
         DealershipDtos.DealershipResponse.from(shop),
         appointment.getScheduledAt(),
@@ -376,7 +426,22 @@ public class AppointmentService {
         local,
         appointment.getStatus(),
         appointment.getCreatedByRole(),
-        appointment.getScheduleVersion(),
         appointment.isNotify());
+  }
+
+  private String nameOf(CustomerEntity customer) {
+    return users.findById(customer.getUserId()).map(UserEntity::getName).orElse(null);
+  }
+
+  private Map<UUID, String> namesByUserId(Iterable<CustomerEntity> rows) {
+    List<UUID> userIds = new ArrayList<>();
+    for (CustomerEntity row : rows) {
+      userIds.add(row.getUserId());
+    }
+    Map<UUID, String> names = new HashMap<>();
+    for (UserEntity user : users.findAllById(userIds)) {
+      names.put(user.getId(), user.getName());
+    }
+    return names;
   }
 }

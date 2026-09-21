@@ -14,7 +14,7 @@ Budgets stay small so a reviewer is never locked out for minutes: **15 requests 
 | Authenticated `CUSTOMER` | `userId` | 15 / 60s, that endpoint only |
 | Authenticated `STAFF` | `userId` | 15 / 60s, that endpoint only |
 
-Redis key shape: `{ip\|user}:{id}:{METHOD}:{path}`.
+Redis key shape: `{ip\|user}:{id}:{METHOD}:{path}`. IP uses `RemoteAddr` unless `app.rate-limit.trust-forwarded-for` is true.
 
 Headers on limited responses: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`. On 429 also `Retry-After`. Body `RATE_LIMITED`.
 

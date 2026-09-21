@@ -29,12 +29,14 @@ public class OutboxRepository {
             UPDATE outbox_events
             SET status = CAST(:processing AS outbox_status),
                 locked_by = :worker,
-                locked_at = now(),
                 lease_expires_at = now() + CAST(:lease AS interval),
                 updated_at = now()
             WHERE id = (
               SELECT o.id FROM outbox_events o
-              WHERE o.status IN (CAST(:pending AS outbox_status), CAST(:retry AS outbox_status))
+              WHERE o.status IN (
+                  CAST(:pending AS outbox_status),
+                  CAST(:retry AS outbox_status),
+                  CAST(:processing AS outbox_status))
                 AND (o.lease_expires_at IS NULL OR o.lease_expires_at < now())
               ORDER BY o.created_at
               FOR UPDATE SKIP LOCKED

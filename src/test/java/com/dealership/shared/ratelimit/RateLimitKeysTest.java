@@ -33,6 +33,10 @@ class RateLimitKeysTest {
         RateLimitKeys.endpoint("GET", "/api/v1/appointments/22222222-2222-4222-8222-222222222222");
     assertEquals("GET:/api/v1/appointments/{id}", first);
     assertEquals(first, second);
+    assertEquals(
+        "GET:/api/v1/appointments/{id}/reminders",
+        RateLimitKeys.endpoint(
+            "GET", "/api/v1/appointments/11111111-1111-4111-8111-111111111111/reminders"));
   }
 
   @Test

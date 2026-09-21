@@ -4,8 +4,6 @@ server:
 spring:
   application:
     name: dealership
-  profiles:
-    default: dev
   jackson:
     time-zone: UTC
     serialization:
@@ -90,8 +88,6 @@ app:
   local-host: ${APP_LOCAL_HOST:http://localhost:8080}
   cors:
     origins: "${APP_CORS_ORIGINS:*}"
-  security:
-    jwt-required: true
   jwt:
     secret: ${APP_JWT_SECRET:local-dev-only-change-me-32bytes-min!!}
     ttl: ${APP_JWT_TTL:7d}
@@ -124,3 +120,4 @@ app:
     staff-period: ${APP_RATE_LIMIT_STAFF_PERIOD:60s}
     ip-capacity: ${APP_RATE_LIMIT_IP_CAPACITY:15}
     ip-period: ${APP_RATE_LIMIT_IP_PERIOD:60s}
+    trust-forwarded-for: ${APP_RATE_LIMIT_TRUST_FORWARDED_FOR:false}

@@ -157,7 +157,12 @@ class AppointmentEndToEndTest extends AbstractIT {
             HttpMethod.POST,
             new HttpEntity<>("{\"scheduledAt\":\"" + future(5, 30).plusDays(2) + "\"}", headers),
             AppointmentDtos.AppointmentResponse.class);
-    assertEquals(2, moved.getBody().scheduleVersion());
+    assertEquals(
+        Integer.valueOf(2),
+        jdbc.queryForObject(
+            "SELECT MAX(schedule_version) FROM reminders WHERE appointment_id = ?",
+            Integer.class,
+            created.id()));
     assertEquals(
         Integer.valueOf(2),
         jdbc.queryForObject(

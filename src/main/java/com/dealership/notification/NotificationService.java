@@ -1,9 +1,16 @@
 package com.dealership.notification;
 
+import com.dealership.appointment.AppointmentEntity;
+import com.dealership.appointment.AppointmentRepository;
+import com.dealership.dealership.DealershipStaffRepository;
+import com.dealership.identity.Role;
 import com.dealership.reminder.ReminderRepository;
 import com.dealership.reminder.ReminderRepository.MailFacts;
+import com.dealership.shared.access.ResourceAccess;
 import com.dealership.shared.api.ApiErrorCode;
 import com.dealership.shared.api.ApiException;
+import com.dealership.shared.security.AuthPrincipal;
+import com.dealership.shared.security.CurrentUser;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,14 +23,20 @@ public class NotificationService {
   private final NotificationRepository notifications;
   private final OutboxEventRepository outboxEvents;
   private final ReminderRepository reminders;
+  private final AppointmentRepository appointments;
+  private final DealershipStaffRepository staff;
 
   public NotificationService(
       NotificationRepository notifications,
       OutboxEventRepository outboxEvents,
-      ReminderRepository reminders) {
+      ReminderRepository reminders,
+      AppointmentRepository appointments,
+      DealershipStaffRepository staff) {
     this.notifications = notifications;
     this.outboxEvents = outboxEvents;
     this.reminders = reminders;
+    this.appointments = appointments;
+    this.staff = staff;
   }
 
   @Transactional
@@ -57,8 +70,17 @@ public class NotificationService {
 
   @Transactional
   public void replay(UUID notificationId) {
+    AuthPrincipal user = CurrentUser.require();
+    if (user.role() != Role.DEALERSHIP_STAFF) {
+      throw ApiException.forbidden("Only staff can replay Notifications");
+    }
+    var membership = staff.findByUserId(user.userId()).orElseThrow(ApiException::notFound);
     NotificationEntity row =
         notifications.findById(notificationId).orElseThrow(ApiException::notFound);
+    AppointmentEntity appointment =
+        appointments.findById(row.getAppointmentId()).orElseThrow(ApiException::notFound);
+    ResourceAccess.requireVisible(
+        appointment.getDealershipId().equals(membership.getDealershipId()));
     if (row.getStatus() == NotificationStatus.SENT) {
       throw ApiException.of(ApiErrorCode.ALREADY_SENT, "Notification already sent");
     }

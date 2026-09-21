@@ -2,7 +2,7 @@
 
 Rows created with the Appointment. Offsets come from config `app.reminders.offsets` (Spring `Duration` list, env `APP_REMINDER_OFFSETS`, default `24h,2h`). Add `7d`, `6h`, `30m` without a code or migration change. Stored as `offset_minutes` (whole minutes, unique per Appointment + Schedule Version). There is no `ReminderType` enum — that set is not closed. **Due times are SQL:** `appointment.scheduled_at - (offset_minutes * interval '1 minute')`. No-show grace is config `app.reminders.no-show-grace` (default `1h`). See [time.md](time.md).
 
-`UNIQUE (appointment_id, offset_minutes, schedule_version)`.
+`UNIQUE (appointment_id, offset_minutes, schedule_version)`. Reminders own `schedule_version`: create and reschedule insert `COALESCE(MAX(schedule_version),0)+1`. Appointments do not store it.
 
 Statuses: PostgreSQL `reminder_status` enum (`PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `SENT`, `DEAD_LETTER`, `CANCELLED`, `EXPIRED`). Java: `ReminderStatus`.
 

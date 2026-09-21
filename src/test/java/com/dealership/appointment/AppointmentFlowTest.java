@@ -3,6 +3,7 @@ package com.dealership.appointment;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dealership.AbstractIT;
@@ -11,12 +12,14 @@ import com.dealership.identity.Role;
 import com.dealership.notification.FileNotificationLog;
 import com.dealership.notification.OutboxPublisher;
 import com.dealership.notification.smtp.StubNotificationSender;
+import com.dealership.reminder.ReminderRepository;
 import com.dealership.reminder.ReminderScheduler;
 import jakarta.persistence.EntityManagerFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.hibernate.SessionFactory;
@@ -24,6 +27,7 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -38,6 +42,8 @@ class AppointmentFlowTest extends AbstractIT {
   @Autowired StubNotificationSender stub;
 
   @Autowired ReminderScheduler poller;
+
+  @Autowired ReminderRepository reminderRows;
 
   @Autowired OutboxPublisher publisher;
 
@@ -137,6 +143,189 @@ class AppointmentFlowTest extends AbstractIT {
             AppointmentDtos.AppointmentResponse.class);
     assertEquals(HttpStatus.CREATED, second.getStatusCode());
     assertNotEquals(appointment.id(), second.getBody().id());
+  }
+
+  @Test
+  void staffReadsRemindersNotScheduledUntilDue() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+
+    ResponseEntity<String> asCustomer =
+        http.exchange(
+            "/api/v1/appointments/" + appointmentId + "/reminders",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(customerToken)),
+            String.class);
+    assertEquals(HttpStatus.FORBIDDEN, asCustomer.getStatusCode());
+
+    ResponseEntity<List> listed =
+        http.exchange(
+            "/api/v1/appointments/" + appointmentId + "/reminders",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            List.class);
+    assertEquals(HttpStatus.OK, listed.getStatusCode());
+    assertEquals(2, listed.getBody().size());
+    assertTrue(listed.getBody().toString().contains("NOT_SCHEDULED"));
+    assertTrue(listed.getBody().toString().contains("offsetMinutes"));
+  }
+
+  @Test
+  void duplicateReminderOffsetSameVersionFailsUniqueConstraint() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+
+    assertThrows(
+        DuplicateKeyException.class,
+        () ->
+            jdbc.update(
+                """
+                INSERT INTO reminders (
+                  id, appointment_id, offset_minutes, schedule_version, scheduled_at, status,
+                  attempts, created_at, updated_at)
+                SELECT gen_random_uuid(), appointment_id, offset_minutes, schedule_version,
+                       scheduled_at, status, 0, now(), now()
+                FROM reminders
+                WHERE appointment_id = ?
+                LIMIT 1
+                """,
+                appointmentId));
+  }
+
+  @Test
+  void markSentRequiresLiveProcessingLease() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    UUID reminderId =
+        jdbc.queryForObject(
+            "SELECT id FROM reminders WHERE appointment_id = ? LIMIT 1", UUID.class, appointmentId);
+    jdbc.update(
+        """
+        UPDATE reminders
+        SET status = 'PROCESSING', lease_expires_at = now() - interval '1 second'
+        WHERE id = ?
+        """,
+        reminderId);
+    assertFalse(reminderRows.markSent(reminderId));
+  }
+
+  @Test
+  void replayOutsideHomeShopIsNotFound() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String otherStaff =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    createDealership(otherStaff);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    UUID reminderId =
+        jdbc.queryForObject(
+            "SELECT id FROM reminders WHERE appointment_id = ? LIMIT 1", UUID.class, appointmentId);
+    UUID notificationId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO notifications (
+          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
+          attempts, created_at, updated_at)
+        VALUES (?, ?, ?, 1440, ?, CAST('DEAD_LETTER' AS notification_status), 0, now(), now())
+        """,
+        notificationId,
+        reminderId,
+        appointmentId,
+        "replay-" + notificationId);
+    ResponseEntity<String> replay =
+        http.exchange(
+            "/api/v1/notifications/" + notificationId + "/replay",
+            HttpMethod.POST,
+            new HttpEntity<>(bearer(otherStaff)),
+            String.class);
+    assertEquals(HttpStatus.NOT_FOUND, replay.getStatusCode());
   }
 
   @Test
@@ -460,9 +649,11 @@ class AppointmentFlowTest extends AbstractIT {
             "/api/v1/customers",
             HttpMethod.POST,
             new HttpEntity<>(
-                Map.of("email", walkInEmail, "password", "password1"), bearer(staffToken)),
+                Map.of("email", walkInEmail, "name", "Walk In", "password", "password1"),
+                bearer(staffToken)),
             Map.class);
     assertEquals(HttpStatus.CREATED, createdCustomer.getStatusCode());
+    assertEquals("Walk In", createdCustomer.getBody().get("name"));
     UUID customerId = UUID.fromString(createdCustomer.getBody().get("id").toString());
 
     ResponseEntity<Map> createdVehicle =

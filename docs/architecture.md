@@ -110,7 +110,7 @@ SET status = 'PROCESSING', locked_by = :worker, lease_expires_at = now() + inter
 WHERE id = (
   SELECT r.id FROM reminders r
   JOIN appointments a ON a.id = r.appointment_id
-  WHERE r.status IN ('PENDING','RETRY_SCHEDULED')
+  WHERE r.status IN ('PENDING','RETRY_SCHEDULED','PROCESSING')
     AND a.status = 'CONFIRMED'
     AND r.scheduled_at <= now()
     AND (r.next_attempt_at IS NULL OR r.next_attempt_at <= now())
@@ -149,14 +149,14 @@ UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive 
 ## 5. Cancellation, reschedule, no-show
 
 - Cancel Confirmed: Appointment `CANCELLED`; unsent Reminders `CANCELLED` in SQL (`UPDATE … WHERE`); no unsend of SENT.
-- Reschedule Confirmed: bump `schedule_version`; old Reminders `CANCELLED`; new Reminder rows via `INSERT … SELECT` + interval; no outbox until those are due.
+- Reschedule Confirmed: cancel unsent Reminders; insert new Reminder rows with `schedule_version = MAX+1` (Reminders own the version; Appointment is not bumped); `INSERT … SELECT` + interval; no outbox until those are due.
 - No-show job: set-based SQL `now() >= scheduled_at + interval '1 hour'` → `NO_SHOW_EXPIRED`; Vehicle free for a new Confirmed row.
 
 Shop-floor In Progress/Completed is later. v1 reads: own or home Dealership, else 404; lists paginated and searchable (`q`).
 
 ## 6. Rate limiting
 
-Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
+Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. IP comes from `request.getRemoteAddr()` unless `app.rate-limit.trust-forwarded-for` (`APP_RATE_LIMIT_TRUST_FORWARDED_FOR`) is true, in which case the first `X-Forwarded-For` hop is used. Default **false** — do not trust that header unless a reverse proxy is in front. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
 
 ## 7. What scales at 75k/day
 

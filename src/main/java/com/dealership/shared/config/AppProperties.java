@@ -1,6 +1,7 @@
 package com.dealership.shared.config;
 
 import jakarta.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -14,7 +15,6 @@ public class AppProperties {
   private String publicHost = "https://dealership.greatnerve.com";
   private String localHost = "http://localhost:8080";
   private final Cors cors = new Cors();
-  private final Security security = new Security();
   private final Jwt jwt = new Jwt();
   private final Reminders reminders = new Reminders();
   private final Notifications notifications = new Notifications();
@@ -42,10 +42,6 @@ public class AppProperties {
 
   public Cors getCors() {
     return cors;
-  }
-
-  public Security getSecurity() {
-    return security;
   }
 
   public Jwt getJwt() {
@@ -83,6 +79,11 @@ public class AppProperties {
   @PostConstruct
   void validate() {
     reminders.offsetMinutes();
+    byte[] secret =
+        jwt.getSecret() == null ? new byte[0] : jwt.getSecret().getBytes(StandardCharsets.UTF_8);
+    if (secret.length < 32) {
+      throw new IllegalStateException("APP_JWT_SECRET must be at least 32 bytes");
+    }
   }
 
   public static class Cors {
@@ -94,18 +95,6 @@ public class AppProperties {
 
     public void setOrigins(List<String> origins) {
       this.origins = origins;
-    }
-  }
-
-  public static class Security {
-    private boolean jwtRequired = true;
-
-    public boolean isJwtRequired() {
-      return jwtRequired;
-    }
-
-    public void setJwtRequired(boolean jwtRequired) {
-      this.jwtRequired = jwtRequired;
     }
   }
 
@@ -257,6 +246,7 @@ public class AppProperties {
     private Duration staffPeriod = Duration.ofSeconds(60);
     private long ipCapacity = 15;
     private Duration ipPeriod = Duration.ofSeconds(60);
+    private boolean trustForwardedFor = false;
 
     public boolean isEnabled() {
       return enabled;
@@ -328,6 +318,14 @@ public class AppProperties {
 
     public void setIpPeriod(Duration ipPeriod) {
       this.ipPeriod = ipPeriod;
+    }
+
+    public boolean isTrustForwardedFor() {
+      return trustForwardedFor;
+    }
+
+    public void setTrustForwardedFor(boolean trustForwardedFor) {
+      this.trustForwardedFor = trustForwardedFor;
     }
   }
 

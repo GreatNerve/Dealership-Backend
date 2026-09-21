@@ -3,6 +3,8 @@ package com.dealership.appointment;
 import com.dealership.customer.CustomerDtos;
 import com.dealership.dealership.DealershipDtos;
 import com.dealership.identity.Role;
+import com.dealership.notification.NotificationStatus;
+import com.dealership.reminder.ReminderStatus;
 import com.dealership.vehicle.VehicleDtos;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -54,6 +56,23 @@ public final class AppointmentDtos {
       String scheduledAtLocal,
       AppointmentStatus status,
       Role createdByRole,
-      int scheduleVersion,
       @JsonProperty("notify") boolean notifyEnabled) {}
+
+  public record ReminderItem(
+      int offsetMinutes,
+      Instant dueAt,
+      ReminderStatus reminderStatus,
+      NotificationView notification) {}
+
+  public record NotificationView(
+      UUID id,
+      NotificationStatus status,
+      int attempts,
+      String lastError,
+      Instant sentAt,
+      Instant nextAttemptAt) {
+    public static NotificationView notScheduled() {
+      return new NotificationView(null, NotificationStatus.NOT_SCHEDULED, 0, null, null, null);
+    }
+  }
 }

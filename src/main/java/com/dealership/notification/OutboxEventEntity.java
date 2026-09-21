@@ -47,9 +47,6 @@ public class OutboxEventEntity {
   @Column(name = "locked_by", length = 64)
   private String lockedBy;
 
-  @Column(name = "locked_at")
-  private Instant lockedAt;
-
   @Column(name = "lease_expires_at")
   private Instant leaseExpiresAt;
 

@@ -6,5 +6,7 @@ public enum NotificationStatus {
   RETRY_SCHEDULED,
   SENT,
   DEAD_LETTER,
-  CANCELLED
+  CANCELLED,
+  // GET only; PostgreSQL notification_status must not gain this value
+  NOT_SCHEDULED
 }

@@ -137,10 +137,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     return false;
   }
 
-  private static String clientIp(HttpServletRequest request) {
-    String forwarded = request.getHeader("X-Forwarded-For");
-    if (forwarded != null && !forwarded.isBlank()) {
-      return forwarded.split(",")[0].trim();
+  private String clientIp(HttpServletRequest request) {
+    if (properties.getRateLimit().isTrustForwardedFor()) {
+      String forwarded = request.getHeader("X-Forwarded-For");
+      if (forwarded != null && !forwarded.isBlank()) {
+        return forwarded.split(",")[0].trim();
+      }
     }
     return request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
   }

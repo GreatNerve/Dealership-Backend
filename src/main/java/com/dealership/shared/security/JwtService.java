@@ -49,7 +49,7 @@ public class JwtService {
   private SecretKey key() {
     byte[] bytes = properties.getJwt().getSecret().getBytes(StandardCharsets.UTF_8);
     if (bytes.length < 32) {
-      bytes = java.util.Arrays.copyOf(bytes, 32);
+      throw new IllegalStateException("APP_JWT_SECRET must be at least 32 bytes");
     }
     return Keys.hmacShaKeyFor(bytes);
   }

@@ -37,9 +37,10 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Retry / backoff
 
-- Transient vs permanent classification (SMTP auth/timeout retry; invalid contact does not).
+- Transient vs permanent classification (SMTP auth/timeout retry; `AddressException` / invalid contact does not).
 - Exponential backoff with jitter stays inside min/max.
 - Attempt 5 → dead-letter, no next attempt.
+- JWT secret shorter than 32 bytes is rejected (no zero-pad).
 
 ## No-show
 

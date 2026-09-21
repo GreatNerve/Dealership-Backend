@@ -49,9 +49,6 @@ public class AppointmentEntity {
   @Column(name = "created_by_role", nullable = false, columnDefinition = "user_role")
   private Role createdByRole;
 
-  @Column(name = "schedule_version", nullable = false)
-  private int scheduleVersion = 1;
-
   @Column(nullable = false)
   private boolean notify = true;
 
@@ -152,14 +149,6 @@ public class AppointmentEntity {
 
   public void setCreatedByRole(Role createdByRole) {
     this.createdByRole = createdByRole;
-  }
-
-  public int getScheduleVersion() {
-    return scheduleVersion;
-  }
-
-  public void setScheduleVersion(int scheduleVersion) {
-    this.scheduleVersion = scheduleVersion;
   }
 
   public boolean isNotify() {

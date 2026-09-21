@@ -90,7 +90,7 @@ INSERT INTO reminders (id, appointment_id, offset_minutes, schedule_version, sch
 SELECT gen_random_uuid(),
        a.id,
        :offsetMinutes,
-       a.schedule_version,
+       :scheduleVersion,
        a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
        CASE
          WHEN now() >= (due_at + next_due_at) / 2 THEN 'EXPIRED'

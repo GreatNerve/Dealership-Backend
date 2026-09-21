@@ -2,6 +2,8 @@ package com.dealership.customer;
 
 import com.dealership.identity.AuthService;
 import com.dealership.identity.Role;
+import com.dealership.identity.UserEntity;
+import com.dealership.identity.UserRepository;
 import com.dealership.shared.api.ApiException;
 import com.dealership.shared.api.PageQueries;
 import com.dealership.shared.api.PageQuery;
@@ -18,6 +20,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerController {
 
   private final CustomerRepository customers;
+  private final UserRepository users;
   private final VehicleRepository vehicles;
   private final VehicleService vehicleService;
   private final AuthService auth;
@@ -45,18 +49,21 @@ public class CustomerController {
 
   public CustomerController(
       CustomerRepository customers,
+      UserRepository users,
       VehicleRepository vehicles,
       VehicleService vehicleService,
       AuthService auth,
       PageQueries pages) {
     this.customers = customers;
+    this.users = users;
     this.vehicles = vehicles;
     this.vehicleService = vehicleService;
     this.auth = auth;
     this.pages = pages;
   }
 
-  public record CustomerResponse(UUID id, String contact, List<VehicleResponse> vehicles) {}
+  public record CustomerResponse(
+      UUID id, String contact, String name, List<VehicleResponse> vehicles) {}
 
   public record CreateCustomerRequest(
       @NotBlank @Email @Size(max = 320) String email,
@@ -83,6 +90,7 @@ public class CustomerController {
     var result =
         customers.findAll(CustomerRepository.matching(query.like()), pages.pageable(query));
     List<UUID> ids = result.getContent().stream().map(CustomerEntity::getId).toList();
+    Map<UUID, String> names = namesByUserId(result.getContent());
     Map<UUID, List<VehicleEntity>> byCustomer =
         ids.isEmpty()
             ? Map.of()
@@ -94,6 +102,7 @@ public class CustomerController {
                 new CustomerResponse(
                     c.getId(),
                     c.getContact(),
+                    names.get(c.getUserId()),
                     byCustomer.getOrDefault(c.getId(), List.of()).stream()
                         .map(v -> VehicleResponse.from(v, c))
                         .toList())));
@@ -108,7 +117,7 @@ public class CustomerController {
         vehicles.findByCustomerIdIn(List.of(id)).stream()
             .map(v -> VehicleResponse.from(v, customer))
             .toList();
-    return new CustomerResponse(customer.getId(), customer.getContact(), owned);
+    return new CustomerResponse(customer.getId(), customer.getContact(), nameOf(customer), owned);
   }
 
   @GetMapping("/{id}/vehicles")
@@ -135,6 +144,22 @@ public class CustomerController {
     requireStaff();
     CustomerEntity customer = customers.findById(id).orElseThrow(ApiException::notFound);
     return vehicleService.create(customer, request);
+  }
+
+  private String nameOf(CustomerEntity customer) {
+    return users.findById(customer.getUserId()).map(UserEntity::getName).orElse(null);
+  }
+
+  private Map<UUID, String> namesByUserId(List<CustomerEntity> rows) {
+    Map<UUID, String> names = new HashMap<>();
+    if (rows.isEmpty()) {
+      return names;
+    }
+    for (UserEntity user :
+        users.findAllById(rows.stream().map(CustomerEntity::getUserId).distinct().toList())) {
+      names.put(user.getId(), user.getName());
+    }
+    return names;
   }
 
   private static void requireStaff() {

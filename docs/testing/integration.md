@@ -28,7 +28,7 @@ These tests prove the **database is the ledger**.
 ## Lifecycle
 
 - Cancel Confirmed → Appointment Cancelled; pending Reminders Cancelled; SENT rows untouched.
-- Reschedule → schedule version bumps; old Reminders Cancelled; new Reminder rows via SQL interval; unique key uses new version; `display_offset` from the new `scheduledAt`.
+- Reschedule → Reminders `MAX(schedule_version)+1`; old Reminders Cancelled; new Reminder rows via SQL interval; unique key uses new version; `display_offset` from the new `scheduledAt`. Appointment has no `schedule_version`.
 ## Clock SQL (set-based)
 
 - Create: 24h Reminder `scheduled_at` equals `appointment.scheduled_at - interval '24 hours'` (and 2h likewise). Assert in SQL/Testcontainers, not Java minus.
@@ -39,7 +39,8 @@ These tests prove the **database is the ledger**.
 ## Leases (DB only)
 
 - Claim sets `PROCESSING` + `lease_expires_at`.
-- Expired lease is claimable again.
+- Expired lease is claimable again (Reminders and outbox `PROCESSING`).
+- `markSent` on an expired lease is a no-op.
 - Two sequential claims of the same PENDING row: only one winner per claim SQL (concurrency layer does two threads).
 
 ## Transactions
@@ -50,7 +51,7 @@ These tests prove the **database is the ledger**.
 
 - After create, Staff `GET /appointments/{id}/reminders` returns one item per offset; `offsetMinutes` and `dueAt` match `reminders.offset_minutes` / `reminders.scheduled_at` (UTC Instant, no `dueAtLocal`); each `notification.status` is `NOT_SCHEDULED` and `id` is null while not due. Never omit `notification`.
 - After a successful send, nested Notification is `SENT` with `sentAt`.
-- After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id.
+- After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id. Replay from another shop’s Staff is 404.
 
 ## Identity login
 
@@ -59,8 +60,8 @@ These tests prove the **database is the ledger**.
 
 ## List enrichment (no N+1)
 
-- Hibernate statistics on: Customer `GET /appointments` with several Confirmed rows stays a bounded statement count (page + count + three `IN` loads), not one query per nested Customer / Vehicle / Dealership.
-- Staff `GET /customers` is page + count + one vehicles-by-customer-id `IN`, independent of how many Customers are on the page.
+- Hibernate statistics on: Customer `GET /appointments` with several Confirmed rows stays a bounded statement count (page + count + `IN` loads for Customer / Vehicle / Dealership / User name), not one query per nested row.
+- Staff `GET /customers` is page + count + one vehicles-by-customer-id `IN` + one users `IN` for names, independent of how many Customers are on the page.
 
 ## Input validation / sanitize
 

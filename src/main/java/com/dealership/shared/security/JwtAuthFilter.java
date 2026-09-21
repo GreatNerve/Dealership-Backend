@@ -1,6 +1,5 @@
 package com.dealership.shared.security;
 
-import com.dealership.shared.config.AppProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,11 +17,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
   private final JwtService jwtService;
-  private final AppProperties properties;
 
-  public JwtAuthFilter(JwtService jwtService, AppProperties properties) {
+  public JwtAuthFilter(JwtService jwtService) {
     this.jwtService = jwtService;
-    this.properties = properties;
   }
 
   @Override

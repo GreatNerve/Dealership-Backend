@@ -123,7 +123,7 @@ A client-supplied header value that makes `POST /appointments` safe to retry. Di
 _Avoid_: Request id (correlation is different), dedupe token (too vague)
 
 **Schedule Version**:
-Increments when an **Appointment** is rescheduled so old **Reminders** cannot collide with new ones.
+Integer on **Reminder** rows. Create starts at 1; reschedule inserts `MAX+1` so old **Reminders** cannot collide with new ones. Not a column on **Appointment**.
 _Avoid_: Version (unqualified), etag
 
 **Outbox Event**:

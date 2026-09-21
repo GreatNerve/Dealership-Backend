@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -73,6 +74,12 @@ public class AppointmentController {
   @Operation(summary = "Get an Appointment")
   public AppointmentDtos.AppointmentResponse get(@PathVariable UUID id) {
     return appointments.get(id);
+  }
+
+  @GetMapping("/{id}/reminders")
+  @Operation(summary = "List Reminders and Notifications for an Appointment (Staff)")
+  public List<AppointmentDtos.ReminderItem> reminders(@PathVariable UUID id) {
+    return appointments.reminders(id);
   }
 
   @GetMapping

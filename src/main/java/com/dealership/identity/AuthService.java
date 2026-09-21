@@ -106,7 +106,7 @@ public class AuthService {
           null,
           customer != null ? customer.getId() : null,
           null,
-          customer != null ? CustomerDtos.CustomerSummary.from(customer) : null);
+          customer != null ? CustomerDtos.CustomerSummary.from(customer, user.getName()) : null);
     }
     var membership = staff.findByUserId(user.getId());
     UUID homeId = membership.map(row -> row.getDealershipId()).orElse(null);

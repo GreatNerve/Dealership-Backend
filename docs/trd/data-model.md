@@ -9,9 +9,9 @@ All tables: `id uuid PK`, `created_at`, `updated_at` timestamptz.
 | `dealership_staff` | `user_id` unique, `dealership_id` |
 | `customers` | `user_id` unique, contact |
 | `vehicles` | `customer_id`, `registration_number` unique **uppercase** (**Vehicle Number**), make, model, year |
-| `appointments` | customer, vehicle, dealership, `scheduled_at` (UTC), `display_offset` (from `scheduledAt`, e.g. `+05:30`), `appointment_status`, `created_by_*` (`user_role`), `schedule_version`, `notify` (false → `logs/notifications.log`, true → stub/SMTP), `one_confirmed` (from `APP_ONE_CONFIRMED_PER_VEHICLE`), optimistic `version` |
+| `appointments` | customer, vehicle, dealership, `scheduled_at` (UTC), `display_offset` (from `scheduledAt`, e.g. `+05:30`), `appointment_status`, `created_by_*` (`user_role`), `notify` (false → `logs/notifications.log`, true → stub/SMTP), `one_confirmed` (from `APP_ONE_CONFIRMED_PER_VEHICLE`), optimistic `version` |
 | `idempotency_keys` | key unique, fingerprint, resource_id, `idempotency_status`, response, expires_at (retain from config, default **24h**). Expired rows deleted at UTC midnight. |
-| `reminders` | appointment, `offset_minutes`, schedule_version, scheduled_at, `reminder_status`, attempts, next_attempt_at, last_error, locked_by, locked_at, lease_expires_at |
+| `reminders` | appointment, `offset_minutes`, schedule_version (`MAX+1` on insert after cancelUnsent), scheduled_at, `reminder_status`, attempts, next_attempt_at, last_error, locked_by, lease_expires_at |
 | `notifications` | reminder_id, appointment_id, `offset_minutes`, idempotency_key unique, `notification_status`, attempts, next_attempt_at, last_error, sent_at |
 | `outbox_events` | `outbox_event_type`, aggregate_id, payload jsonb, `outbox_status`, attempts, lease, published_at |
 
