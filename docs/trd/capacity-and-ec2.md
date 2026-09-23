@@ -14,4 +14,17 @@ The in-process proof is `RequestCapacityTest`: concurrent list GETs + Appointmen
 
 ## EC2 (last implementation step)
 
-Do not expand AWS now. Later: one EC2, main `docker-compose.yml`, `.env` for Brevo/JWT, security group, Actuator. Public host: `https://dealership.greatnerve.com`. Auto-size will follow that instance’s CPUs; pin only if you want different numbers than the formula. Second instance is another week. App JVM stays UTC regardless of region (`us-east-1` vs India); see [time.md](time.md).
+One EC2, main `docker-compose.yml` **or** a host JVM with managed brokers. Secrets live in **`.env.production`** (gitignored; copy of `.env.example` shape) — not in git.
+
+Typical managed stack for this deploy:
+
+| Role | Service | Notes |
+| --- | --- | --- |
+| Postgres | Supabase | JDBC `?sslmode=require` |
+| Redis | Upstash | `SPRING_DATA_REDIS_SSL_ENABLED=true` + username/password (`rediss`) |
+| RabbitMQ | CloudAMQP | Port **5671**, `SPRING_RABBITMQ_SSL_ENABLED=true`, `VIRTUAL_HOST` = user vhost |
+| SMTP | Brevo | `APP_NOTIFICATIONS_MODE=smtp` + `SPRING_MAIL_*` |
+
+**Do not** set `SPRING_PROFILES_ACTIVE=dev` on EC2 (no demo seed / local Vehicle-cap override). `APP_JWT_SECRET` must be unique and ≥ 32 bytes. Behind nginx/ALB set `APP_RATE_LIMIT_TRUST_FORWARDED_FOR=true`.
+
+Public host: `https://dealership.greatnerve.com`. Auto-size follows that instance’s CPUs; pin only to override the formula. App JVM stays UTC regardless of region (`us-east-1` vs India); see [time.md](time.md).

@@ -13,6 +13,7 @@ import io.github.bucket4j.distributed.ExpirationAfterWriteStrategy;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.function.Supplier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -47,9 +49,21 @@ public class RateLimitFilter extends OncePerRequestFilter {
       AppProperties properties, ObjectMapper mapper, LettuceConnectionFactory lettuce) {
     this.properties = properties;
     this.mapper = mapper;
-    String host = lettuce.getHostName() == null ? "localhost" : lettuce.getHostName();
-    int port = lettuce.getPort();
-    this.redisClient = RedisClient.create("redis://" + host + ":" + port);
+    // Upstash (and similar) need TLS + password; plain redis://host:port is local only.
+    RedisStandaloneConfiguration redis = lettuce.getStandaloneConfiguration();
+    String host = redis.getHostName() == null ? "localhost" : redis.getHostName();
+    RedisURI.Builder uri =
+        RedisURI.builder().withHost(host).withPort(redis.getPort()).withSsl(lettuce.isUseSsl());
+    String username = redis.getUsername();
+    char[] passwordChars = redis.getPassword().toOptional().orElse(null);
+    if (passwordChars != null && passwordChars.length > 0) {
+      if (username != null && !username.isBlank()) {
+        uri.withAuthentication(username, passwordChars);
+      } else {
+        uri.withPassword(passwordChars);
+      }
+    }
+    this.redisClient = RedisClient.create(uri.build());
     this.connection = redisClient.connect(RedisCodec.of(StringCodec.UTF8, ByteArrayCodec.INSTANCE));
     this.buckets =
         LettuceBasedProxyManager.builderFor(connection)
