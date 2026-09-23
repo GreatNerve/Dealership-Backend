@@ -1,26 +1,3 @@
 include:
-  - docker-compose.deps.yml
-
-services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    env_file:
-      - .env
-    volumes:
-      - ./logs:/app/logs
-    cpus: 4.0
-    mem_limit: 3584m
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dealership
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_RABBITMQ_HOST: rabbitmq
-      JAVA_TOOL_OPTIONS: -Duser.timezone=UTC -XX:MaxRAMPercentage=50.0
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+  - docker/docker-compose.deps.yml
+  - docker/docker-compose.app.yml

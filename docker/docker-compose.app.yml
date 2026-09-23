@@ -1,0 +1,32 @@
+# App image only. Build context is the repo root (../Dockerfile).
+# With deps already up (same project):
+#   docker compose -f docker/docker-compose.deps.yml -f docker/docker-compose.app.yml up -d --build app
+# Or use the root main file: docker compose up -d --build
+#
+# .env keeps localhost for `make run`. This block remaps hosts to Compose service
+# names so the container does not need a second set of URL vars.
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../.env
+    volumes:
+      - ../logs:/app/logs
+    cpus: 4.0
+    mem_limit: 3584m
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dealership}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Duser.timezone=UTC -XX:MaxRAMPercentage=50.0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

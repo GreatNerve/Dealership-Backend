@@ -2,12 +2,12 @@
 
 ## Actors
 
-| Actor | Meaning |
-| --- | --- |
-| User | Login identity. Either a Customer or a Staff Member in v1, not both. |
-| Customer | Owns Vehicles; self-books any Dealership. Cancels and reschedules own Confirmed visits. |
+| Actor        | Meaning                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| User         | Login identity. Either a Customer or a Staff Member in v1, not both.                                               |
+| Customer     | Owns Vehicles; self-books any Dealership. Cancels and reschedules own Confirmed visits.                            |
 | Staff Member | Books on behalf of a Customer at home Dealership only. Completes, cancels, and reschedules Confirmed visits there. |
-| System | Expires no-shows; claims due work; retries Notifications. |
+| System       | Expires no-shows; claims due work; retries Notifications.                                                          |
 
 ## Stories
 

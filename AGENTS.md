@@ -50,16 +50,17 @@ Ignore [no-push/](no-push/) except the assignment PDF.
 
 ```bash
 make hooks          # once: install git pre-commit (Spotless + tests)
-make deps           # docker compose -f docker-compose.deps.yml up -d
+make deps           # docker compose -f docker/docker-compose.deps.yml up -d
 make fmt            # ./mvnw spotless:apply
 make test           # format then ./mvnw test
 make run            # deps + ./mvnw spring-boot:run
+make app            # deps + app image (docker/docker-compose.app.yml)
 make appointment    # localhost 24h + 2h Appointment (scripts/test-appointment.sh)
 make stop           # kill whatever is on PORT (default 8080)
-make up             # docker compose up -d --build
+make up             # docker compose up -d --build (root includes deps + app)
 ```
 
-Without make: `docker compose -f docker-compose.deps.yml up -d`, `./mvnw spotless:apply`, `./mvnw test`, `./mvnw spring-boot:run`.
+Without make: `docker compose -f docker/docker-compose.deps.yml up -d`, `./mvnw spotless:apply`, `./mvnw test`, `./mvnw spring-boot:run`.
 
 Pre-commit (`.githooks/pre-commit`, installed by `make hooks`): on commits that touch `src/` or `pom.xml`, runs Spotless then `./mvnw test`. No Python. Docs-only commits skip tests. `git commit --no-verify` bypasses it.
 

@@ -33,13 +33,19 @@ Same without make:
 
 ```bash
 cp .env.example .env
-docker compose -f docker-compose.deps.yml up -d
+docker compose -f docker/docker-compose.deps.yml up -d
 ./mvnw spotless:apply
 ./mvnw test
 ./mvnw spring-boot:run
 ```
 
-Full stack (deps + app image):
+App image only (deps + `docker/docker-compose.app.yml`):
+
+```bash
+make app
+```
+
+Full stack (root `docker-compose.yml` includes deps + app):
 
 ```bash
 cp .env.example .env

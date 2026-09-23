@@ -16,10 +16,12 @@ Documented now. Created when implementing. Do not invent a second layout.
   .vscode/settings.json              # format on save (Google Java Format)
   .editorconfig
   pom.xml                            # includes Spotless
-  Dockerfile                         # multi-stage Java 21 app image
+  Dockerfile                         # multi-stage Java 21 app image (root)
   .dockerignore
-  docker-compose.deps.yml            # postgres, rabbitmq, redis
-  docker-compose.yml                 # main: deps + app
+  docker-compose.yml                 # main: includes docker/deps + docker/app
+  docker/
+    docker-compose.deps.yml          # postgres, rabbitmq, redis
+    docker-compose.app.yml           # app container only
   .cursor/rules/project-constraints.mdc
   docs/
     prd/                             # product modules
@@ -48,6 +50,6 @@ Documented now. Created when implementing. Do not invent a second layout.
   no-push/
 ```
 
-Local Maven: `docker compose -f docker-compose.deps.yml up -d` then `./mvnw spring-boot:run`. Full stack: `docker compose up --build` (main file includes the app).
+Local Maven: `docker compose -f docker/docker-compose.deps.yml up -d` then `./mvnw spring-boot:run`. App image only: `make app` (deps + `docker/docker-compose.app.yml`). Full stack: `docker compose up --build` (root main includes deps + app).
 
 What each Java type holds: [code-style.md](code-style.md). Packages are **by module** (`appointment`, `notification`). Role is the **filename**. Nested folders are **concerns** (`notification/smtp`), not `controller/` / `service/` layers. Do not nest `notification/notification`.

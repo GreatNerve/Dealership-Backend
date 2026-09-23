@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: dealership
-      POSTGRES_USER: dealership
-      POSTGRES_PASSWORD: dealership
+      POSTGRES_DB: ${POSTGRES_DB:-dealership}
+      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME:-dealership}
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-dealership}
     ports:
       - "5432:5432"
     cpus: 2.0
@@ -14,7 +14,7 @@ services:
     volumes:
       - dealership_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dealership -d dealership"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,6 +26,9 @@ services:
       - "15672:15672"
     cpus: 1.0
     mem_limit: 1g
+    environment:
+      RABBITMQ_DEFAULT_USER: ${SPRING_RABBITMQ_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${SPRING_RABBITMQ_PASSWORD:-guest}
     volumes:
       - dealership_rabbit:/var/lib/rabbitmq
     healthcheck:
