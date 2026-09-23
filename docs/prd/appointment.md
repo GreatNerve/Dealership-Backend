@@ -22,8 +22,9 @@
 | Customer create body | `{ vehicleId, dealershipId, scheduledAt, notify? }` |
 | Staff create body | `{ customerId, vehicleId, scheduledAt, notify? }`. Dealership from token. |
 | Past `scheduledAt` | Reject create. |
-| Late vs Reminder windows | Past the **Send Window** midpoint (adjacent gap ÷ 2) → that offset `EXPIRED`, no mail. Future offsets still created. See [reminder.md](reminder.md). |
+| Late vs Reminder windows | At create/reschedule: if that offset’s **due Instant is already past** → `EXPIRED`, no mail for that offset (e.g. visit in 12h → no 24h mail). Visit more than 24h out → 24h stays `PENDING` until due. After due, worker-down recovery still uses send-window midpoint. See [reminder.md](reminder.md). |
 | Cancel / reschedule | Only from Confirmed. Customer: own visits. Staff: home Dealership. Other customer / other shop → 404. |
+| Reschedule | New `scheduledAt` must be **in the future**, must **differ** from the current Instant (`400 SCHEDULED_AT_UNCHANGED` if same), and the visit must not already be past (`400 SCHEDULED_AT_PAST`). Cancels unsent Reminders; new rows use `MAX(schedule_version)+1`. Same late-offset rule as create. |
 | Complete | Staff, home Dealership, Confirmed only. Not the same as cancel. Frees the Vehicle; unsent Reminders cancelled. Customer → 403. Other shop → 404. |
 | Already sent | Cannot unsend. History stays. |
 | Time | ISO-8601 with offset in (`scheduledAt`). Store UTC Instant **and** **Booking Offset**. No Customer timezone field. Mail / Customer GET: that offset (`10:00 PM UTC+05:30`). Staff GET: **Dealership Timezone**. JVM UTC so EC2 region does not matter. See [../trd/time.md](../trd/time.md). |

@@ -16,8 +16,10 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class ReminderRepository {
-  // JPA cannot claim FOR UPDATE SKIP LOCKED or expire by interval without loading graphs.
-  // next due or visit; /2 is the Send Window midpoint (adjacent gap), not the full stretch
+  // JPA cannot claim FOR UPDATE SKIP LOCKED or expire by interval without loading
+  // graphs.
+  // next due or visit; /2 is the Send Window midpoint (adjacent gap), not the
+  // full stretch
   public static final String MAIL_WORKER_PREFIX = "mail-";
   private static final String NEXT_DUE =
       """
@@ -56,20 +58,14 @@ public class ReminderRepository {
                :offsetMinutes,
                :scheduleVersion,
                a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
-               CASE
-                 WHEN now() >=
-                   (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
-                   + (
-                     (CASE
-                        WHEN CAST(:nextOffsetMinutes AS int) IS NULL THEN a.scheduled_at
-                        ELSE a.scheduled_at
-                          - (CAST(:nextOffsetMinutes AS int) * interval '1 minute')
-                      END)
-                     - (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
-                   ) / 2
-                   THEN CAST(:expired AS reminder_status)
-                 ELSE CAST(:pending AS reminder_status)
-               END,
+                   -- Due already past → EXPIRED (late book / reschedule inside that offset).
+                   -- Due still in the future → PENDING (normal create; mail sends when due).
+                   CASE
+                     WHEN now() >=
+                       (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
+                       THEN CAST(:expired AS reminder_status)
+                     ELSE CAST(:pending AS reminder_status)
+                   END,
                0,
                now(),
                now()
@@ -189,7 +185,8 @@ public class ReminderRepository {
   }
 
   // notify false is still due work; MailWorker appends logs/ instead of SMTP
-  // batch from CPUs (floor 18 = 500k/day × 2 offsets on a 500ms poll); cap 50 so no findAll
+  // batch from CPUs (floor 18 = 500k/day × 2 offsets on a 500ms poll); cap 50 so
+  // no findAll
   public List<ClaimedReminder> claimDue(String workerId, Duration lease, int batch) {
     return jdbc.query(
         """
@@ -214,12 +211,12 @@ public class ReminderRepository {
         """
             + and(BEFORE_MIDPOINT)
             + """
-          ORDER BY r.scheduled_at
-  FOR UPDATE OF r SKIP LOCKED
-  LIMIT :batch
-)
-RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, attempts
-""",
+                      ORDER BY r.scheduled_at
+              FOR UPDATE OF r SKIP LOCKED
+              LIMIT :batch
+            )
+            RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, attempts
+            """,
         new MapSqlParameterSource()
             .addValue("worker", workerId)
             .addValue("lease", toPgInterval(lease))
@@ -319,7 +316,8 @@ RETURNING id, appointment_id, offset_minutes, schedule_version, scheduled_at, at
   }
 
   public boolean heartbeat(UUID reminderId, String workerId, Duration lease) {
-    // Poller/replay hold PROCESSING until SMTP starts; a live mail-* owner blocks a second send.
+    // Poller/replay hold PROCESSING until SMTP starts; a live mail-* owner blocks a
+    // second send.
     int updated =
         jdbc.update(
             """

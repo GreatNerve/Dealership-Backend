@@ -15,5 +15,6 @@ class ApiErrorCodeTest {
     assertEquals("INVALID_TIMEZONE", ApiErrorCode.INVALID_TIMEZONE.name());
     assertEquals(HttpStatus.CONFLICT, ApiErrorCode.CONCURRENT_UPDATE.status());
     assertEquals("CONCURRENT_UPDATE", ApiErrorCode.CONCURRENT_UPDATE.name());
+    assertEquals(HttpStatus.BAD_REQUEST, ApiErrorCode.SCHEDULED_AT_UNCHANGED.status());
   }
 }

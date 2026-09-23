@@ -41,7 +41,7 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 ## Cancel / reschedule / complete
 
 - Customer or home-shop Staff cancel before send → stub never called for those Reminders. Other customer / other shop → 404.
-- Customer or home-shop Staff reschedule → old Reminders not sent; new rows from config offsets can be sent.
+- Customer or home-shop Staff reschedule → old Reminders not sent; new rows from config offsets. Same Instant → `400 SCHEDULED_AT_UNCHANGED`. Past target or past current visit → `400 SCHEDULED_AT_PAST`. New visit within 24h → 24h inserts `EXPIRED` (no catch-up); more than 24h out → 24h may send when due.
 - Staff `POST /appointments/{id}/complete` at home Dealership → `COMPLETED`, unsent Reminders cancelled, Vehicle free. Customer complete → 403.
 
 ## Mock Appointment

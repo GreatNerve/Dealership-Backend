@@ -31,6 +31,7 @@ import com.dealership.shared.time.TimeProvider;
 import com.dealership.vehicle.VehicleDtos;
 import com.dealership.vehicle.VehicleEntity;
 import com.dealership.vehicle.VehicleRepository;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -213,9 +214,19 @@ public class AppointmentService {
       throw ApiException.of(
           ApiErrorCode.NOT_CONFIRMED, "Only a Confirmed Appointment can be rescheduled");
     }
+    Instant now = time.now();
+    // Visit time already passed — cancel/no-show path, not reschedule.
+    if (AppointmentPolicies.scheduledAtIsPast(appointment.getScheduledAt(), now)) {
+      throw ApiException.of(
+          ApiErrorCode.SCHEDULED_AT_PAST, "Cannot reschedule after the Appointment time");
+    }
     BookingInstant booking = BookingTimes.parseScheduledAt(body.scheduledAt());
-    if (AppointmentPolicies.scheduledAtIsPast(booking.utc(), time.now())) {
+    if (AppointmentPolicies.scheduledAtIsPast(booking.utc(), now)) {
       throw ApiException.of(ApiErrorCode.SCHEDULED_AT_PAST, "scheduledAt must be in the future");
+    }
+    if (AppointmentPolicies.scheduledAtUnchanged(appointment.getScheduledAt(), booking.utc())) {
+      throw ApiException.of(
+          ApiErrorCode.SCHEDULED_AT_UNCHANGED, "scheduledAt must change to reschedule");
     }
     reminders.cancelUnsent(appointment.getId());
     appointment.setScheduledAt(booking.utc());

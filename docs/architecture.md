@@ -150,7 +150,7 @@ UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive 
 
 - Cancel Confirmed: Customer own or Staff at home Dealership. Appointment `CANCELLED`; unsent Reminders `CANCELLED` in SQL (`UPDATE … WHERE`); no unsend of SENT. Other customer / other shop → 404.
 - Staff complete Confirmed: Appointment `COMPLETED`; same Reminder cancel; Vehicle no longer Blocking. Other shop → 404. Customer → 403.
-- Reschedule Confirmed: Customer own or Staff at home Dealership. Cancel unsent Reminders; insert new Reminder rows with `schedule_version = MAX+1` (Reminders own the version; Appointment is not bumped); `INSERT … SELECT` + interval; no outbox until those are due. Other customer / other shop → 404.
+- Reschedule Confirmed: Customer own or Staff at home Dealership. Reject if current visit already past, if new `scheduledAt` is past, or if Instant is unchanged. Cancel unsent Reminders; insert new Reminder rows with `schedule_version = MAX+1` (Reminders own the version; Appointment is not bumped); `INSERT … SELECT` + interval; offsets whose due is already past insert `EXPIRED` (no catch-up 24h). No outbox until those are due. Other customer / other shop → 404.
 - No-show job: set-based SQL `now() >= scheduled_at + interval '1 hour'` → `NO_SHOW_EXPIRED`; Vehicle free for a new Confirmed row.
 
 v1 reads: own or home Dealership, else 404; lists paginated and searchable (`q`). **In Progress** is later.

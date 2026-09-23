@@ -83,7 +83,7 @@ Vehicle: make, model, year, **Vehicle Number**. If `users.name` is set, first li
 
 No-show grace is config `app.reminders.no-show-grace` (default `1h`), bound as `interval`. Config offsets (`APP_REMINDER_OFFSETS`, default `24h,2h`) are stored as `offset_minutes`. Postgres does the arithmetic so EC2 and the JVM clock cannot drift from the ledger.
 
-Insert Reminder due times (same transaction as the Appointment):
+Insert Reminder due times (same transaction as create/reschedule): due Instant = visit − offset. If `now() >= due` at insert → `EXPIRED` (no catch-up mail when the visit is closer than that offset). Midpoint expire remains for worker-down recovery after due.
 
 ```sql
 INSERT INTO reminders (id, appointment_id, offset_minutes, schedule_version, scheduled_at, status, ...)
@@ -93,11 +93,10 @@ SELECT gen_random_uuid(),
        :scheduleVersion,
        a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
        CASE
-         WHEN now() >= (due_at + next_due_at) / 2 THEN 'EXPIRED'
+         WHEN now() >= (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
+           THEN 'EXPIRED'  -- due already past: no catch-up mail
          ELSE 'PENDING'
        END,
-       -- due_at = a.scheduled_at - offset; next_due_at = next smaller offset due, or a.scheduled_at
-       ...
 FROM appointments a
 WHERE a.id = :appointmentId;
 ```

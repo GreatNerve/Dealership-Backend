@@ -24,6 +24,13 @@ class AppointmentPolicyTest {
   }
 
   @Test
+  void sameInstantIsUnchangedForReschedule() {
+    Instant t = Instant.parse("2026-09-22T16:30:00Z");
+    assertTrue(AppointmentPolicies.scheduledAtUnchanged(t, t));
+    assertFalse(AppointmentPolicies.scheduledAtUnchanged(t, t.plusSeconds(60)));
+  }
+
+  @Test
   void secondConfirmedOnSameVehicleConflicts() {
     assertTrue(AppointmentPolicies.vehicleAlreadyHasConfirmed(true));
     assertFalse(AppointmentPolicies.vehicleAlreadyHasConfirmed(false));

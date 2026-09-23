@@ -101,6 +101,17 @@ class AppointmentFlowTest extends AbstractIT {
             Integer.class,
             appointment.id());
     assertEquals(2, reminderCount);
+    // Visit 3 days out → both offsets due in the future → PENDING (normal send path).
+    assertEquals(
+        Integer.valueOf(2),
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM reminders
+            WHERE appointment_id = ? AND status = 'PENDING'
+              AND offset_minutes IN (1440, 120)
+            """,
+            Integer.class,
+            appointment.id()));
 
     ResponseEntity<AppointmentDtos.AppointmentResponse> replay =
         http.exchange(
@@ -587,7 +598,48 @@ class AppointmentFlowTest extends AbstractIT {
   }
 
   @Test
-  void twentyHoursOutKeepsTwentyFourHourPending() {
+  void moreThanTwentyFourHoursOutKeepsBothOffsetsPending() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
+    // 30h out: 24h due is still ~6h in the future → must stay PENDING (regular create/send).
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusHours(30)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID id =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":true}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    assertEquals(
+        "PENDING",
+        jdbc.queryForObject(
+            "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 1440",
+            String.class,
+            id));
+    assertEquals(
+        "PENDING",
+        jdbc.queryForObject(
+            "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 120",
+            String.class,
+            id));
+  }
+
+  @Test
+  void twentyHoursOutExpiresTwentyFourHourBecauseDueAlreadyPast() {
     String staffToken =
         registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
     UUID dealershipId = createDealership(staffToken);
@@ -612,8 +664,9 @@ class AppointmentFlowTest extends AbstractIT {
                 AppointmentDtos.AppointmentResponse.class)
             .getBody()
             .id();
+    // Visit in 20h → 24h due is already past → EXPIRED (no catch-up). 2h still PENDING.
     assertEquals(
-        "PENDING",
+        "EXPIRED",
         jdbc.queryForObject(
             "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 1440",
             String.class,
@@ -624,6 +677,71 @@ class AppointmentFlowTest extends AbstractIT {
             "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 120",
             String.class,
             id));
+  }
+
+  @Test
+  void rescheduleRejectsSameInstantAndPastVisit() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(2)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    var created =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":false}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody();
+    ResponseEntity<String> same =
+        http.exchange(
+            "/api/v1/appointments/" + created.id() + "/reschedule",
+            HttpMethod.POST,
+            new HttpEntity<>("{\"scheduledAt\":\"" + when + "\"}", bearer(customerToken)),
+            String.class);
+    assertEquals(HttpStatus.BAD_REQUEST, same.getStatusCode());
+    assertTrue(same.getBody().contains("SCHEDULED_AT_UNCHANGED"));
+
+    OffsetDateTime withinDay =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusHours(12)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    ResponseEntity<AppointmentDtos.AppointmentResponse> moved =
+        http.exchange(
+            "/api/v1/appointments/" + created.id() + "/reschedule",
+            HttpMethod.POST,
+            new HttpEntity<>("{\"scheduledAt\":\"" + withinDay + "\"}", bearer(customerToken)),
+            AppointmentDtos.AppointmentResponse.class);
+    assertEquals(HttpStatus.OK, moved.getStatusCode());
+    assertEquals(
+        "EXPIRED",
+        jdbc.queryForObject(
+            """
+            SELECT status FROM reminders
+            WHERE appointment_id = ? AND schedule_version = 2 AND offset_minutes = 1440
+            """,
+            String.class,
+            created.id()));
+    assertEquals(
+        "PENDING",
+        jdbc.queryForObject(
+            """
+            SELECT status FROM reminders
+            WHERE appointment_id = ? AND schedule_version = 2 AND offset_minutes = 120
+            """,
+            String.class,
+            created.id()));
   }
 
   @Test
