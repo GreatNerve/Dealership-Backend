@@ -888,6 +888,151 @@ class AppointmentFlowTest extends AbstractIT {
   }
 
   @Test
+  void crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly() throws Exception {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("GJ"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+
+    jdbc.update(
+        """
+        UPDATE reminders
+        SET scheduled_at = now() - interval '1 minute',
+            status = CAST('PENDING' AS reminder_status),
+            locked_by = NULL,
+            lease_expires_at = NULL,
+            next_attempt_at = NULL
+        WHERE appointment_id = ? AND offset_minutes = 1440
+        """,
+        appointmentId);
+
+    poller.tick();
+    publisher.drain();
+    awaitStubSends(appointmentId, 1);
+
+    String key =
+        jdbc.queryForObject(
+            """
+            SELECT idempotency_key FROM notifications
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            String.class,
+            appointmentId);
+    UUID reminderId =
+        jdbc.queryForObject(
+            """
+            SELECT id FROM reminders
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            UUID.class,
+            appointmentId);
+
+    // Provider accepted; process died before durable SENT — reopen ledger, same key.
+    jdbc.update(
+        """
+        UPDATE notifications
+        SET status = CAST('PENDING' AS notification_status),
+            sent_at = NULL,
+            updated_at = now()
+        WHERE appointment_id = ? AND offset_minutes = 1440
+        """,
+        appointmentId);
+    jdbc.update(
+        """
+        UPDATE reminders
+        SET status = CAST('PENDING' AS reminder_status),
+            locked_by = NULL,
+            lease_expires_at = NULL,
+            next_attempt_at = NULL,
+            updated_at = now()
+        WHERE id = ?
+        """,
+        reminderId);
+
+    poller.tick();
+    publisher.drain();
+    awaitStubSends(appointmentId, 2);
+
+    long stubSends =
+        stub.recorded().stream()
+            .filter(s -> s.appointmentId().equals(appointmentId) && key.equals(s.idempotencyKey()))
+            .count();
+    assertTrue(stubSends >= 2, "at-least-once may hit the stub twice after a crash window");
+    assertEquals(
+        Integer.valueOf(1),
+        jdbc.queryForObject(
+            """
+            SELECT count(*) FROM notifications
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            Integer.class,
+            appointmentId));
+    assertEquals(
+        Integer.valueOf(1),
+        jdbc.queryForObject(
+            """
+            SELECT count(DISTINCT idempotency_key) FROM notifications
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            Integer.class,
+            appointmentId));
+    assertEquals(
+        key,
+        jdbc.queryForObject(
+            """
+            SELECT idempotency_key FROM notifications
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            String.class,
+            appointmentId));
+    assertEquals(
+        "SENT",
+        jdbc.queryForObject(
+            """
+            SELECT status::text FROM notifications
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            String.class,
+            appointmentId));
+  }
+
+  private void awaitStubSends(UUID appointmentId, int min) throws InterruptedException {
+    long deadline = System.currentTimeMillis() + 5000;
+    while (System.currentTimeMillis() < deadline) {
+      long stubSends =
+          stub.recorded().stream().filter(s -> s.appointmentId().equals(appointmentId)).count();
+      if (stubSends >= min) {
+        return;
+      }
+      publisher.drain();
+      Thread.sleep(50);
+    }
+    long stubSends =
+        stub.recorded().stream().filter(s -> s.appointmentId().equals(appointmentId)).count();
+    assertTrue(stubSends >= min, "expected >= " + min + " stub sends, got " + stubSends);
+  }
+
+  @Test
   void staffSearchesCustomerAndVehiclesForBookingIds() {
     String staffToken =
         registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);

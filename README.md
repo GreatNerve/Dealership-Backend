@@ -132,6 +132,7 @@ Start with the folder READMEs, then open the file for that topic. Terms live in 
 | [docs/decision/README.md](docs/decision/README.md) | Architecture I chose and **why** |
 | [docs/architecture.md](docs/architecture.md) | Runtime flows |
 | [docs/testing/README.md](docs/testing/README.md) | Unit, integration, e2e, uniqueness |
+| [test-report.md](test-report.md) | Last `./mvnw test` counts + unit / e2e inventory |
 | [docs/adr/](docs/adr/) | Short ADRs (hard-to-reverse trade-offs) |
 
 | Topic | Product | Tech | Why |

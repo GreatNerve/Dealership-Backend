@@ -8,4 +8,4 @@ I do not claim exactly-once SMTP. I claim **at-least-once processing** plus:
 - stable notification key `appointmentId:offsetMinutes:scheduleVersion`
 - Stripe-style `Idempotency-Key` on `POST /appointments` (a different problem: client retries)
 
-If Brevo accepts and the process dies before I mark SENT, a retry may hit the provider again. I document that instead of lying.
+If Brevo accepts and the process dies before I mark SENT, a retry may hit the provider again. That is proven in `AppointmentFlowTest.crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`: stub ≥ 2, Notification row count = 1, same key, ends `SENT`.

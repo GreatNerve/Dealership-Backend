@@ -8,6 +8,7 @@ Documented now. Created when implementing. Do not invent a second layout.
   CLAUDE.md
   CONTEXT.md
   README.md                          # front door: topic → prd / trd / decision
+  test-report.md                     # last ./mvnw test + unit / integration / e2e inventory
   manual-appointment.md              # curl flow: 24h + 2h Appointment
   Makefile
   scripts/test-appointment.sh        # URL arg: local or prod 24h + 2h Appointment

@@ -6,7 +6,8 @@ Proof is not a comment. Proof is:
 
 1. Unique `(appointment_id, offset_minutes, schedule_version)`.
 2. Unique notification idempotency key.
-3. **Two workers, one send** for that Reminder Offset.
+3. **Two workers, one send** for that Reminder Offset (`concurrentClaimsSendOnce`).
+4. Crash after provider accept / before durable `SENT` → retry **same key**, still **one** Notification row (`crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`).
 
 ## Concurrent workers
 
@@ -25,7 +26,7 @@ Proof is not a comment. Proof is:
 
 - Crash after claim, before send → lease expires (heartbeat stopped), second worker sends **once**.
 - Slow SMTP with heartbeat still running → second worker must **not** send.
-- Crash after stub success, before DB SENT → retry uses the same key; stub may be called again (at-least-once). Assert we do not create a **second Reminder Offset** row or a second Notification **row** with a new key. Document the stub double-call as the honest limit.
+- Crash after stub/SMTP success, before DB `SENT` → retry uses the **same** idempotency key; stub **may** be called again (at-least-once to the provider). Assert **one** Notification row for that key (no second Reminder Offset, no new key). Proven by `AppointmentFlowTest.crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`.
 
 ## What “same Reminder twice” means
 
