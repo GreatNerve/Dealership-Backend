@@ -4,6 +4,20 @@ Vehicle-service **Appointment** booking, **Reminder** delivery, and **email trac
 
 Public host: [https://dealership.greatnerve.com](https://dealership.greatnerve.com)
 
+Staff UI: [https://dship.greatnerve.com/](https://dship.greatnerve.com/)
+
+## Email handoff
+
+Attach **[docs/handoff-and-next-week.pdf](docs/handoff-and-next-week.pdf)**. Regenerate it with `python scripts/generate-handoff-pdf.py`.
+
+Longer source (assignment map, samples, failure cases): **[docs/handoff-and-next-week.md](docs/handoff-and-next-week.md)**.
+
+Production staff login is the seed user **`staff@greatnerve.com` / `password1`**. Shared demo account is in the PDF.
+
+Design docs: [github.com/GreatNerve/Dealership-Backend/tree/main/docs](https://github.com/GreatNerve/Dealership-Backend/tree/main/docs). Test inventory: [test-report.md](test-report.md) · [GitHub](https://github.com/GreatNerve/Dealership-Backend/blob/main/test-report.md).
+
+Protected `/api/v1` routes need **`Authorization: Bearer <token>`** after login (Swagger **Authorize**, OAuth2 password, username = email).
+
 ## Reminder send window
 
 This window exists **because if the worker goes down and then recovers**, mail can still go out. Due time is when it should send. If the worker was down at that instant, after it comes back it may send while `now` is still in the first half of the gap to the next due. If it recovers **past the midpoint** → `EXPIRED`, no mail for that offset (a 24h Reminder must not send an hour before the visit).
@@ -78,7 +92,7 @@ Default Notification Mode is **stub**. Set `APP_NOTIFICATIONS_MODE=smtp` to send
 
 **One Spring Boot JVM.** PostgreSQL, RabbitMQ, and Redis are the other processes. Reminder poller, `OutboxPublisher`, and `MailWorker` are threads in that JVM — not three app boxes.
 
-The **controller** saves the Appointment and Reminder schedule. `ReminderScheduler` claims due Reminders and writes Notification + outbox (**no AMQP in that transaction**). `OutboxPublisher` drains outbox to RabbitMQ. `MailWorker` (`@RabbitListener`, 2–4 threads) sends. Postgres does not create the booking.
+The **controller** saves the Appointment and Reminder schedule. `ReminderScheduler` claims due Reminders and writes Notification + outbox (**no AMQP in that transaction**). `OutboxPublisher` drains outbox to RabbitMQ. `MailWorker` (`@RabbitListener`, 2–8 threads) sends. Postgres does not create the booking.
 
 ```mermaid
 flowchart TB
@@ -110,7 +124,7 @@ flowchart TB
 
   RMQ[RabbitMQ broker]
 
-  subgraph worker [MailWorker 2 to 4 threads — same JVM]
+  subgraph worker [MailWorker 2 to 8 threads — same JVM]
     direction TB
     W1["1. @RabbitListener, renew lease while sending"]
     W2["2. File log if notify false, else stub or SMTP with Correlation Key"]

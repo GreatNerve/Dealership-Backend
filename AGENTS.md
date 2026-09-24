@@ -18,7 +18,7 @@ Ignore [no-push/](no-push/) except the assignment PDF.
 
 - No Kafka, no Keycloak, no Spring Cloud Gateway, no Lombok.
 - Reminder offsets from config (`APP_REMINDER_OFFSETS`, default `24h,2h`). Not a Java enum of types. No confirmation mail in v1.
-- Mail workers 2–4 (default 2), 30s lease with heartbeat, SMTP timeout < lease. Due Reminders and outbox drain a **Claim Batch** from CPU count (`APP_WORKERS_CLAIM_BATCH=0` auto, floor 18 for **500k Appointments/day** = 10× the assignment 50k, max 50). Hikari and Tomcat also auto from CPUs unless pinned. Not a “poll 10×”. Why: [docs/decision/scale.md](docs/decision/scale.md).
+- Mail workers 2–8 (default 2), 30s lease with heartbeat, SMTP timeout < lease. Due Reminders and outbox drain a **Claim Batch** from CPU count (`APP_WORKERS_CLAIM_BATCH=0` auto, floor 18 for **500k Appointments/day** = 10× the assignment 50k, max 50). Hikari and Tomcat also auto from CPUs unless pinned. Not a “poll 10×”. Why: [docs/decision/scale.md](docs/decision/scale.md).
 - Redis is Bucket4j HTTP limits only, never uniqueness or mail throttle. Limits are **per endpoint** (method + path, UUID collapsed to `{id}`), **15 / 60s**, never a window longer than 60s. Login and register do not share tokens. Delivery webhooks are not limited. `X-Forwarded-For` is used only when `APP_RATE_LIMIT_TRUST_FORWARDED_FOR=true` **and** `RemoteAddr` is in `APP_RATE_LIMIT_TRUSTED_PROXIES` (empty list = Cloudflare published CIDRs).
 - Reminder uniqueness and one Confirmed Appointment per Vehicle are **PostgreSQL**. The Vehicle cap is `APP_ONE_CONFIRMED_PER_VEHICLE` (default `true`). `false` stores `one_confirmed=false` so the unique index does not apply.
 - Staff book **home Dealership only**.

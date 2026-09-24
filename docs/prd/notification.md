@@ -4,7 +4,7 @@
 
 1. As an operator, I want stub delivery by default, so that the assignment demo is safe.
 2. As an operator, I want a flag to send real mail via Brevo SMTP.
-3. As an operator, I want 2–4 workers sending mail in parallel, because SMTP is slow.
+3. As an operator, I want 2–8 workers sending mail in parallel, because SMTP is slow.
 4. As an operator, I want dead-lettered mail to be replayable with the same identity.
 5. As a caller, I want Mock Appointments (`notify: false`) to append a file log and store delivery without sending email.
 6. As a Staff Member, I want to GET **all Schedule Versions** of Reminders on an Appointment at my home Dealership (offset, send time, nested Notification), so reschedule does not hide prior SENT or CANCELLED rows.
@@ -17,7 +17,7 @@
 
 - `NotificationSender` abstraction. Mode `stub` or `smtp` for `notify: true` **and** for **Manual** send. `notify: false` appends `APP_NOTIFICATIONS_LOG_DIR` (`logs/notifications.log`) on the **System** due path only. Staff who explicitly compose still use Notification Mode.
 - SMTP = **Brevo** (`APP_NOTIFICATIONS_MODE=smtp` + `SPRING_MAIL_*` in `.env`). No Mailhog in the default deps stack. Keep SMTP (not HTTP send). Correlation is the **Notification** UUID in a provider-mapped custom header (Brevo adapter: `X-Mailin-custom`). Schema and JSON never use that header name.
-- 2–4 mail workers (default 2), prefetch 1 each, 30s lease with heartbeat (slow SMTP must not double-send — more workers than 4 do not make Brevo faster). Outbox drain uses the same **Claim Batch** as Reminder claim (`APP_WORKERS_CLAIM_BATCH=0` auto from CPUs) so publish does not lag claim.
+- 2–8 mail workers (default 2), prefetch 1 each, 30s lease with heartbeat (slow SMTP must not double-send — more workers than 8 do not make Brevo faster). Outbox drain uses the same **Claim Batch** as Reminder claim (`APP_WORKERS_CLAIM_BATCH=0` auto from CPUs) so publish does not lag claim.
 - **System** Notification/outbox only when the Reminder is due. **Manual** Notification + outbox on `POST /appointments/{id}/notifications` (same Rabbit → `MailWorker` path). Request returns the Notification id; send is async.
 - **Channel** `EMAIL` in v1. **Generation** `SYSTEM` (has `reminder_id`) or `MANUAL` (`reminder_id` null). Every row has `dealership_id` + `appointment_id`.
 - **Manual** stores `subject` and `body` on the Notification. **System** does not (body is `ReminderMail` from the outbox snapshot at send time). Templates are frontend-only (visit-again, feedback, missed, upcoming). Hydrate from the loaded Appointment GET (`customer.name`, Vehicle Number, `scheduledAtLocal`, Dealership name). API accepts final `subject` + `body` only — no `templateKey`. Body keeps paragraph breaks (`Inputs.multiline`). SMTP wraps that text in the **same HTML shell** as System mail (cream card, dark header). Manual send from an Appointment at home Dealership, else 404. `Idempotency-Key` required so a double-click is one Notification.

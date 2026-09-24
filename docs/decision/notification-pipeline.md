@@ -1,8 +1,8 @@
-# Notification pipeline: stub / Brevo SMTP, 2–4 workers, Delivery Events
+# Notification pipeline: stub / Brevo SMTP, 2–8 workers, Delivery Events
 
 Default sender is the **stub** (assignment-safe). A flag switches the same `NotificationSender` to **Brevo SMTP**. Keep SMTP (not the Transactional HTTP API) so the assignment demo and existing env stay one send path. Correlation is the **Notification** UUID in a provider-mapped custom header (Brevo: `X-Mailin-custom`). Adapters own header names; the ledger does not.
 
-**2–4 leased workers** (default 2) send in parallel because SMTP is slow. Each consumer prefetch is 1. Redis stays off this path.
+**2–8 leased workers** (default 2) send in parallel because SMTP is slow. Each consumer prefetch is 1. Redis stays off this path.
 
 **System** path: due Reminder → Notification + `REMINDER_DUE` outbox → Rabbit → `MailWorker`. **Manual** path: Staff POST → Notification (`generation=MANUAL`, `reminder_id` null, subject/body stored) + `MANUAL_NOTIFICATION` outbox → same worker.
 

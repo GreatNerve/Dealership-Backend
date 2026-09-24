@@ -1,6 +1,6 @@
 # Notification (TRD)
 
-Outbox publisher drains with SKIP LOCKED (`OutboxRepository.claim`, same **Claim Batch** as Reminders, auto from CPUs) → RabbitMQ. Claim includes `PROCESSING` rows whose lease has expired (same reclaim as Reminders). Notification, outbox, and **Delivery Event** rows are JPA. **2–4** consumers (default 2), each `prefetch=1`. Lease 30s with heartbeat; SMTP timeout shorter than lease. `markSent` / `markDead` / `markRetry` no-op unless the row is still `PROCESSING` with a live lease (**System**: Reminder lease; **Manual**: Notification lease — same helper).
+Outbox publisher drains with SKIP LOCKED (`OutboxRepository.claim`, same **Claim Batch** as Reminders, auto from CPUs) → RabbitMQ. Claim includes `PROCESSING` rows whose lease has expired (same reclaim as Reminders). Notification, outbox, and **Delivery Event** rows are JPA. **2–8** consumers (default 2), each `prefetch=1`. Lease 30s with heartbeat; SMTP timeout shorter than lease. `markSent` / `markDead` / `markRetry` no-op unless the row is still `PROCESSING` with a live lease (**System**: Reminder lease; **Manual**: Notification lease — same helper).
 
 Send path lives in `com.dealership.notification.smtp` (`NotificationSender`, stub, SMTP, `MailWorker`). Webhook adapters live in `com.dealership.notification.webhook`. Notification rows, outbox, HTTP, and events stay in `com.dealership.notification`. Breaking schema recreate is allowed (demo wipe); do not dual-write old and new shapes.
 

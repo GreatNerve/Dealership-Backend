@@ -12,7 +12,7 @@ Creates are cheap. 500k/day is ~5.8 writes/s over 24h, or ~17.4/s if the same vo
 
 The spike is **many 24h Reminders becoming due in the same minute** (people book around the same local hour). `LIMIT 1` every 500ms is only 2 claims/s — that cannot drain 35/s. Loading every due row into the JVM is the other failure mode the architecture already forbids.
 
-So the poller claims a **bounded batch**, then one `IN` load of mail facts. Outbox drain uses the same batch so publish keeps up with claim. Mail workers stay **2–4**: SMTP is the slow side; extra consumers past 4 do not make Brevo faster and the product already locked that range.
+So the poller claims a **bounded batch**, then one `IN` load of mail facts. Outbox drain uses the same batch so publish keeps up with claim. Mail workers stay **2–8**: SMTP is the slow side; extra consumers past 8 do not make Brevo faster and the product already locked that range.
 
 ## Why pools follow this process, not a guessed constant
 
@@ -32,7 +32,7 @@ Measured on this repo’s machine (2026-09-21): **i5-13450HX, 10 cores / 16 thre
 
 On this 16-thread host: Hikari 32, Tomcat 200, Claim Batch **18**. Inside Compose the app is limited to 4 CPUs: Hikari 8, Tomcat 64, Claim Batch still **18** (the 500k floor is higher than 4). Tests pin Hikari 24 so Testcontainers stays deterministic; Claim Batch still auto (18 here).
 
-Mail / Rabbit prefetch stay 1 per consumer. Uniqueness is the DB key, not a bigger prefetch. **Claim Batch is not mail throughput.** 500k Appointments/day × 2 offsets is ~35 due rows/s; 2–4 workers at prefetch 1 drain as fast as Brevo allows. If SMTP is hundreds of ms, the Send Window holds the queue until midpoint, then unsent rows `EXPIRED`. That cap is the product rule (workers 2–4), not a pool multiplier.
+Mail / Rabbit prefetch stay 1 per consumer. Uniqueness is the DB key, not a bigger prefetch. **Claim Batch is not mail throughput.** 500k Appointments/day × 2 offsets is ~35 due rows/s; 2–8 workers at prefetch 1 drain as fast as Brevo allows. If SMTP is hundreds of ms, the Send Window holds the queue until midpoint, then unsent rows `EXPIRED`. That cap is the product rule (workers 2–8), not a pool multiplier.
 
 ## Why Compose is split this way
 
@@ -43,13 +43,13 @@ Docker Desktop only has **7.57 GiB** for Postgres + RabbitMQ + Redis + the app. 
 | Postgres | 2 | 2 GiB (`shared_buffers=256MB`) | Ledger and SKIP LOCKED. ~25% of a 2 GiB box is a safe `shared_buffers` starting point. `shm_size=256m` so parallel query / vacuum does not fail. |
 | RabbitMQ | 1 | 1 GiB | Broker is RAM-hungry; 1 GiB is the usual small-node floor. Prefetch 1 keeps the queue, not the JVM, as the buffer. |
 | Redis | 0.5 | 256 MiB | Bucket4j counters only. Tiny. |
-| App | 4 | 3.5 GiB, heap 50% | HTTP + poller + 2–4 mail threads. `MaxRAMPercentage=50` (~1.7 GiB heap) leaves metaspace and native for Tomcat/JDBC. |
+| App | 4 | 3.5 GiB, heap 50% | HTTP + poller + 2–8 mail threads. `MaxRAMPercentage=50` (~1.7 GiB heap) leaves metaspace and native for Tomcat/JDBC. |
 
 `make run` uses deps Compose (Postgres/Rabbit/Redis capped) and a **host** JVM, which sees 16 threads and ~4 GiB ergonomic heap on this 16 GB laptop. `make up` uses the app container limits above. Pin env on EC2 when that host’s CPU count differs.
 
 ## What I am not doing
 
 - **Kafka / extra services** for 500k/day. Average is still tens of writes per second. The spike is SQL + a bounded claim, not a log cluster.
-- **Sizing mail workers past 4.** SMTP latency dominates; uniqueness is already in Postgres.
+- **Sizing mail workers past 8.** SMTP latency dominates; uniqueness is already in Postgres.
 - **`findAll` due Reminders.** Batch is the bound; the next 500ms poll takes the next batch.
 - **Copying another machine’s pool sizes into yaml as if they were universal.** Auto at boot; pin only when you mean it.

@@ -4,7 +4,7 @@ Normative details: [prd/](prd/README.md), [trd/](trd/README.md), [decision/](dec
 
 ## 1. Shape
 
-**One Spring Boot JVM** on EC2. PostgreSQL, RabbitMQ, and Redis are the other processes. The Reminder poller, Manual retry poller, **OutboxPublisher** (AMQP publish), and **MailWorker** (AMQP consume, 2–4 threads) are **roles in that JVM**, not extra OS processes. Do not draw them as three app boxes.
+**One Spring Boot JVM** on EC2. PostgreSQL, RabbitMQ, and Redis are the other processes. The Reminder poller, Manual retry poller, **OutboxPublisher** (AMQP publish), and **MailWorker** (AMQP consume, 2–8 threads) are **roles in that JVM**, not extra OS processes. Do not draw them as three app boxes.
 
 PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule (and Manual Notifications). `ReminderScheduler` claims due Reminders and inserts Notification + **Outbox Event** (no AMQP in that transaction). `OutboxPublisher` SKIP LOCKED-drains outbox and `convertAndSend`s to RabbitMQ. `MailWorker` `@RabbitListener`s (prefetch 1) and sends. A **webhook** appends Delivery Events. Redis is HTTP rate limit only.
 
@@ -18,7 +18,7 @@ flowchart TB
     ReminderPoller["ReminderScheduler — claim due Reminders, INSERT Notification + outbox"]
     ManualPoller["NotificationScheduler — Manual RETRY re-enqueue"]
     Publisher["OutboxPublisher — SKIP LOCKED drain, AMQP publish"]
-    Mail["MailWorker 2 to 4 threads — @RabbitListener prefetch 1"]
+    Mail["MailWorker 2 to 8 threads — @RabbitListener prefetch 1"]
     HTTP --> ReminderPoller
     HTTP --> ManualPoller
   end
@@ -70,7 +70,7 @@ flowchart TB
 
   RMQ[RabbitMQ broker]
 
-  subgraph worker [MailWorker 2 to 4 threads — same JVM]
+  subgraph worker [MailWorker 2 to 8 threads — same JVM]
     direction TB
     W1["1. @RabbitListener, renew lease while sending"]
     W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
@@ -131,7 +131,7 @@ flowchart TB
 
   RMQ[RabbitMQ broker]
 
-  subgraph worker [MailWorker 2 to 4 threads — same JVM]
+  subgraph worker [MailWorker 2 to 8 threads — same JVM]
     direction TB
     W1["1. @RabbitListener, renew lease while sending"]
     W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
@@ -226,7 +226,7 @@ Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID seg
 
 ## 9. What scales at 50k/day (sized at 500k)
 
-**Why 500k:** the PDF is 50k Appointments/day / 500 Dealerships; 10× is review headroom (one order of magnitude), not a second multiplier on the poll. **Why CPU-sized pools:** this laptop, Docker, and EC2 do not share cores; guessing Hikari=20 / batch=10 is wrong on every other box. **Why a Claim Batch at all:** `LIMIT 1` / 500ms is 2/s; an 8-hour 500k day with two offsets needs ~35/s; floor **18** is that drain per poll (`500_000/28_800×2×0.5`). Cap 50 so Java never `findAll`s due rows. Hikari `2×CPUs` (Postgres-on-SSD); Tomcat `16×CPUs` capped at Spring’s 200. Mail stays 2–4 because SMTP is the limiter. Kafka is still theatre. Full why: [decision/scale.md](decision/scale.md).
+**Why 500k:** the PDF is 50k Appointments/day / 500 Dealerships; 10× is review headroom (one order of magnitude), not a second multiplier on the poll. **Why CPU-sized pools:** this laptop, Docker, and EC2 do not share cores; guessing Hikari=20 / batch=10 is wrong on every other box. **Why a Claim Batch at all:** `LIMIT 1` / 500ms is 2/s; an 8-hour 500k day with two offsets needs ~35/s; floor **18** is that drain per poll (`500_000/28_800×2×0.5`). Cap 50 so Java never `findAll`s due rows. Hikari `2×CPUs` (Postgres-on-SSD); Tomcat `16×CPUs` capped at Spring’s 200. Mail stays 2–8 because SMTP is the limiter. Kafka is still theatre. Full why: [decision/scale.md](decision/scale.md).
 
 ## 10. Demo path
 
