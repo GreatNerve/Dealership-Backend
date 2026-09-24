@@ -14,7 +14,7 @@
 10. As an operator, I want the public API at `https://dealership.greatnerve.com`.
 11. As an operator, I want `/actuator/prometheus` behind JWT so I can scrape send/create counters without opening metrics to the internet.
 12. As a browser client, I want CORS to allow **any origin** (`APP_CORS_ORIGINS=*`), so a local or hosted UI can call the API without a whitelist.
-13. As a Staff Member, I want a dashboard of Appointment status counts and Notification send/fail/bounce/open (today, year, last 7 days).
+13. As a Staff Member, I want a dashboard of Appointment status counts and Notification send/fail/bounce/open (today, calendar year 1 Jan–31 Dec, last 7 days).
 
 ## Video success
 

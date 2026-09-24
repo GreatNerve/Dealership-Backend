@@ -14,6 +14,7 @@ Discussion updates docs in the same turn. Application code lives under `src/` af
 | Appointment | [appointment.md](appointment.md) |
 | Reminder | [reminder.md](reminder.md) |
 | Notification | [notification.md](notification.md) |
+| Email tracking (Delivery Events) | [email-tracking.md](email-tracking.md) |
 | Operations (Swagger, rate limit, dashboard, demo) | [operations.md](operations.md) |
 | Scope and later | [scope.md](scope.md) |
 

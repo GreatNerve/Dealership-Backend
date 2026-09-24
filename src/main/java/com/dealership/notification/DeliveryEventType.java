@@ -10,5 +10,10 @@ public enum DeliveryEventType {
   SPAM,
   BLOCKED,
   ERROR,
-  OTHER
+  OTHER;
+
+  // Provider BLOCKED is a reject, same as bounce for Staff counts.
+  public static boolean bounce(DeliveryEventType type) {
+    return type == SOFT_BOUNCE || type == HARD_BOUNCE || type == BLOCKED;
+  }
 }

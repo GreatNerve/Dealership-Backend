@@ -25,11 +25,12 @@ public class DashboardController {
   }
 
   @GetMapping("/stats")
-  @Operation(summary = "Home Dealership Appointment and Notification counts with buckets")
+  @Operation(
+      summary = "Home Dealership Appointment and Notification counts; omit bucket for totals only")
   public DashboardDtos.Stats stats(
       @RequestParam Instant from,
       @RequestParam Instant to,
-      @RequestParam(defaultValue = "DAY") StatsBucket bucket) {
+      @RequestParam(required = false) StatsBucket bucket) {
     if (CurrentUser.require().role() != Role.DEALERSHIP_STAFF) {
       throw ApiException.forbidden("Only staff can read dashboard stats");
     }

@@ -24,8 +24,7 @@ public class DashboardService {
   @Transactional(readOnly = true)
   public DashboardDtos.Stats stats(InstantRange range, StatsBucket bucket) {
     DealershipEntity shop = shops.requireStaffShop();
-    StatsBucket slice = bucket == null ? StatsBucket.DAY : bucket;
     return new DashboardDtos.Stats(
-        appointments.stats(shop, range, slice), notifications.stats(shop, range, slice));
+        appointments.stats(shop, range, bucket), notifications.stats(shop, range, bucket));
   }
 }

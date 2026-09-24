@@ -22,6 +22,7 @@ Discussion updates docs in the same turn. Application code lives under `src/` af
 | Appointment | [appointment.md](appointment.md) |
 | Reminder | [reminder.md](reminder.md) |
 | Notification | [notification.md](notification.md) |
+| Email tracking (Delivery Events) | [email-tracking.md](email-tracking.md) |
 | Rate limiting | [rate-limiting.md](rate-limiting.md) |
 | Data model | [data-model.md](data-model.md) |
 | Testing | [testing.md](testing.md) (folder: [../testing/](../testing/README.md)) |

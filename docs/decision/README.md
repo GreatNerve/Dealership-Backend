@@ -13,6 +13,7 @@ Front door: [../../README.md](../../README.md). Product rules: [../prd/README.md
 | SKIP LOCKED workers and leases | [skip-locked-workers.md](skip-locked-workers.md) |
 | At-least-once, idempotent reminders | [at-least-once-idempotency.md](at-least-once-idempotency.md) |
 | Stub/Brevo SMTP, Correlation Key, Delivery Events | [notification-pipeline.md](notification-pipeline.md) |
+| Email tracking is append-only events (not Notification columns) | [notification-pipeline.md](notification-pipeline.md), [../adr/0012-smtp-correlation-and-delivery-events.md](../adr/0012-smtp-correlation-and-delivery-events.md) |
 | Configurable offsets and send window | [send-window-and-config.md](send-window-and-config.md) |
 | Dual booking, staff pinned to home shop | [dual-booking.md](dual-booking.md) |
 | One Confirmed Appointment per Vehicle | [one-appointment-per-vehicle.md](one-appointment-per-vehicle.md) |

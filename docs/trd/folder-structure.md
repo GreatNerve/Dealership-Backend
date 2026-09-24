@@ -30,6 +30,7 @@ Documented now. Created when implementing. Do not invent a second layout.
     decision/                        # architecture I chose and why
     testing/                         # unit, integration, e2e strategy
     architecture.md
+    architecture-diagram-prompt.json
     adr/
   src/main/java/com/dealership/
     shared/                          # page, errors, access 404, time format, lease

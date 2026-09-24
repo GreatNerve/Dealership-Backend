@@ -97,8 +97,12 @@ Who created the **Notification**. **SYSTEM** = due **Reminder**. **MANUAL** = St
 _Avoid_: type, kind, source (unqualified)
 
 **Delivery Event**:
-Append-only provider signal on a **Notification** (accepted, delivered, opened, bounced, clicked, spam, blocked, error). Generic enum. Derive “opened?” from events — do not copy status onto `notifications`.
+Append-only provider signal on a **Notification** (accepted, delivered, opened, bounced, clicked, spam, blocked, error). Generic enum. Derive “opened?” from events — do not copy status onto `notifications`. **Bounced** includes `SOFT_BOUNCE`, `HARD_BOUNCE`, and `BLOCKED`.
 _Avoid_: Brevo event names in the API, snapshot columns (`opened_at`)
+
+**Email tracking**:
+Staff-facing name for **Delivery Events** on EMAIL **Notifications** (opened / bounce timeline and dashboard counts). Same ledger, not a second module table.
+_Avoid_: tracking as worker SENT, opened_at column, “email status” that overwrites Notification status
 
 **Correlation Key**:
 The **Notification** id. SMTP puts it in a provider-mapped custom header (Brevo: `X-Mailin-custom`). Schema and JSON never use that header name. Future Channels map their own header/tag to the same id.

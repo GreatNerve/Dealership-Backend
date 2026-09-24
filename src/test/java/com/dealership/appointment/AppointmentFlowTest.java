@@ -607,7 +607,7 @@ class AppointmentFlowTest extends AbstractIT {
             SELECT count(*) FROM reminders r
             JOIN appointments a ON a.id = r.appointment_id
             WHERE r.appointment_id = ?
-              AND r.offset_minutes = 120
+                  AND r.offset_minutes = 120
               AND r.scheduled_at = a.scheduled_at - interval '2 hours'
             """,
             Integer.class,
@@ -1551,6 +1551,34 @@ WHERE notification_id = ? AND provider_event_id <> 'e1' AND provider_event_id <>
     assertTrue(((Number) stats.getBody().get("opened")).intValue() >= 1);
     assertTrue(stats.getBody().containsKey("failed"));
     assertTrue(stats.getBody().containsKey("bounced"));
+
+    ResponseEntity<Void> blocked =
+        http.exchange(
+            "/api/v1/webhooks/delivery/stub",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"event":"BLOCKED","correlationKey":"%s","providerEventId":"blocked-1"}
+                """
+                    .formatted(notificationId),
+                hook),
+            Void.class);
+    assertEquals(HttpStatus.OK, blocked.getStatusCode());
+    ResponseEntity<Map> bouncedStats =
+        http.exchange(
+            "/api/v1/notifications/stats?from=" + from + "&to=" + to,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, bouncedStats.getStatusCode());
+    assertTrue(((Number) bouncedStats.getBody().get("bounced")).intValue() >= 1);
+    ResponseEntity<Map> bouncedDetail =
+        http.exchange(
+            "/api/v1/notifications/" + notificationId,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(Boolean.TRUE, bouncedDetail.getBody().get("bounced"));
 
     Instant openedFrom = Instant.parse("2026-01-01T00:00:00Z");
     Instant openedTo = Instant.now().plusSeconds(3600);

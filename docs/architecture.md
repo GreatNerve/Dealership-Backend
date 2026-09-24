@@ -4,13 +4,47 @@ Normative details: [prd/](prd/README.md), [trd/](trd/README.md), [decision/](dec
 
 ## 1. Shape
 
-One Spring Boot JVM. PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule (and Manual Notifications). The **poller** claims due Reminders and inserts Notification + outbox. The **worker** (2–4) sends. A **webhook** appends Delivery Events. Redis is HTTP rate limit only.
+**One Spring Boot JVM** on EC2. PostgreSQL, RabbitMQ, and Redis are the other processes. The Reminder poller, Manual retry poller, **OutboxPublisher** (AMQP publish), and **MailWorker** (AMQP consume, 2–4 threads) are **roles in that JVM**, not extra OS processes. Do not draw them as three app boxes.
+
+PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule (and Manual Notifications). `ReminderScheduler` claims due Reminders and inserts Notification + **Outbox Event** (no AMQP in that transaction). `OutboxPublisher` SKIP LOCKED-drains outbox and `convertAndSend`s to RabbitMQ. `MailWorker` `@RabbitListener`s (prefetch 1) and sends. A **webhook** appends Delivery Events. Redis is HTTP rate limit only.
+
+```mermaid
+flowchart TB
+  Client["HTTP Client"]
+
+  subgraph jvm [One Spring Boot JVM]
+    direction TB
+    HTTP["Controller + webhook"]
+    ReminderPoller["ReminderScheduler — claim due Reminders, INSERT Notification + outbox"]
+    ManualPoller["NotificationScheduler — Manual RETRY re-enqueue"]
+    Publisher["OutboxPublisher — SKIP LOCKED drain, AMQP publish"]
+    Mail["MailWorker 2 to 4 threads — @RabbitListener prefetch 1"]
+    HTTP --> ReminderPoller
+    HTTP --> ManualPoller
+  end
+
+  PG[(PostgreSQL)]
+  RMQ[RabbitMQ broker]
+  Redis[(Redis rate limit)]
+  SMTP[SMTP / stub / file log]
+
+  Client --> HTTP
+  HTTP --> PG
+  ReminderPoller --> PG
+  ManualPoller --> PG
+  Publisher --> PG
+  Publisher -->|MailSnapshot JSON| RMQ
+  RMQ --> Mail
+  Mail --> SMTP
+  Mail --> PG
+  HTTP -.-> Redis
+```
 
 ```mermaid
 flowchart TB
   Client["POST /appointments"]
 
-  subgraph controller [Controller]
+  subgraph controller [Controller — same JVM]
     direction TB
     A1["1. Validate + Idempotency-Key"]
     A2["2. INSERT Appointment CONFIRMED"]
@@ -21,19 +55,24 @@ flowchart TB
 
   Wait["Wait until due. If worker was down, send only inside Send Window"]
 
-  subgraph poller [Poller]
+  subgraph reminderPoller [ReminderScheduler — same JVM]
     direction TB
     P1["1. Mark Reminder EXPIRED if past midpoint"]
     P2["2. Mark Appointment NO_SHOW if past grace"]
     P3["3. Claim a Claim Batch of due Reminders — SKIP LOCKED"]
-    P4["4. INSERT Notification PENDING"]
-    P5["5. INSERT outbox and publish to RabbitMQ"]
-    P1 --> P2 --> P3 --> P4 --> P5
+    P4["4. INSERT Notification PENDING + outbox row — commit, no AMQP"]
+    P1 --> P2 --> P3 --> P4
   end
 
-  subgraph worker [Worker 2 to 4]
+  subgraph publisher [OutboxPublisher — same JVM]
+    O1["SKIP LOCKED claim outbox, convertAndSend, mark PUBLISHED"]
+  end
+
+  RMQ[RabbitMQ broker]
+
+  subgraph worker [MailWorker 2 to 4 threads — same JVM]
     direction TB
-    W1["1. Renew lease while sending"]
+    W1["1. @RabbitListener, renew lease while sending"]
     W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
     W3["3. Mark SENT on reminders and notifications"]
     W1 --> W2 --> W3
@@ -42,8 +81,8 @@ flowchart TB
   Retry["RETRY_SCHEDULED on both tables — poller claims again"]
   Dead["DEAD_LETTER — Staff replay reopens PROCESSING"]
 
-  Client --> controller --> Wait --> poller --> worker
-  worker -->|transient fail| Retry --> poller
+  Client --> controller --> Wait --> reminderPoller --> publisher --> RMQ --> worker
+  worker -->|transient fail| Retry --> reminderPoller
   worker -->|permanent or max attempts| Dead
 ```
 
@@ -69,7 +108,7 @@ Customer path uses `vehicleId + dealershipId + scheduledAt`. Staff path uses `cu
 
 Staff mail status: `GET /appointments/{id}/reminders` (home Dealership) returns **all Schedule Versions**. Reminder rows exist from create. Each item: `scheduleVersion`, `offsetMinutes`, `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone and groups the list as **this visit** then **previous booking** (no version numbers in the UI). Nested `notification` is always present: **Not Scheduled** until a Notification row exists, then the stored status. `lastError` is on that object, not the Appointment.
 
-Shop-wide: `GET /notifications` filters by `notifications.dealership_id`. List and item GET nest the Appointment (customer, Vehicle, visit time) in one `findAllById` batch. Manual compose: `POST /appointments/{id}/notifications` writes the row + `MANUAL_NOTIFICATION` outbox in one transaction (no Reminder). Staff dashboard is one `GET /dashboard/stats` (range totals + `StatsBucket` slices); do not fan out today / year / daily.
+Shop-wide: `GET /notifications` filters by `notifications.dealership_id`. List and item GET nest the Appointment (customer, Vehicle, visit time) in one `findAllById` batch. Manual compose: `POST /appointments/{id}/notifications` writes the row + `MANUAL_NOTIFICATION` outbox in one transaction (no Reminder). Staff dashboard: `GET /dashboard/stats` calendar year (1 Jan–31 Dec shop TZ) with no `bucket` (totals); last 7 days with `bucket=DAY`. Do not request year-range `DAY` buckets for a 7-day chart.
 
 ## 3. Due work
 
@@ -77,18 +116,24 @@ In-memory timers are not the source of truth. After restart, any row with `sched
 
 ```mermaid
 flowchart TB
-  subgraph poller [Poller]
+  subgraph reminderPoller [ReminderScheduler — same JVM]
     direction TB
     P1["1. Mark Reminder EXPIRED if past midpoint"]
     P2["2. Mark Appointment NO_SHOW if past grace"]
     P3["3. Claim a Claim Batch of due Reminders — SKIP LOCKED"]
-    P4["4. INSERT Notification and outbox, publish to RabbitMQ"]
+    P4["4. INSERT Notification and outbox — no AMQP in this TX"]
     P1 --> P2 --> P3 --> P4
   end
 
-  subgraph worker [Worker 2 to 4]
+  subgraph publisher [OutboxPublisher — same JVM]
+    O1["SKIP LOCKED claim outbox, convertAndSend, mark PUBLISHED"]
+  end
+
+  RMQ[RabbitMQ broker]
+
+  subgraph worker [MailWorker 2 to 4 threads — same JVM]
     direction TB
-    W1["1. Renew lease while sending"]
+    W1["1. @RabbitListener, renew lease while sending"]
     W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
     W3["3. Mark SENT on reminders and notifications"]
     W1 --> W2 --> W3
@@ -97,8 +142,8 @@ flowchart TB
   Retry["RETRY_SCHEDULED on both tables — poller claims again"]
   Dead["DEAD_LETTER — Staff replay reopens PROCESSING"]
 
-  poller --> worker
-  worker -->|transient fail| Retry --> poller
+  reminderPoller --> publisher --> RMQ --> worker
+  worker -->|transient fail| Retry --> reminderPoller
   worker -->|permanent or max attempts| Dead
 ```
 
@@ -164,7 +209,7 @@ flowchart LR
   Provider --> Hook --> Adapter --> Evt
 ```
 
-Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic event enum and Correlation Key. Brevo `ts_epoch` is milliseconds (≥ 1e12); seconds still parse. One transaction per POST (array max 100). Insert append-only. Duplicate unique key → no second row. Long `provider_event_id` hashed to 64 hex chars. Do not mutate worker `Notification.status`. Staff item GET returns events latest first. Staff list with `appointmentId` includes the same timeline. Staff list/stats `EXISTS` events. Stats CTE filters healed `occurred_at` to `[from, to)` (epoch ≥ 1e12 still pulled as millis). Bounce/open buckets use first event in range per Notification.
+Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic event enum and Correlation Key. Brevo `ts_epoch` is milliseconds (≥ 1e12); seconds still parse. One transaction per POST (array max 100). Insert append-only. Duplicate unique key → no second row. Long `provider_event_id` hashed to 64 hex chars. Do not mutate worker `Notification.status`. Staff item GET returns events latest first. Staff list with `appointmentId` includes the same timeline. Staff list/stats `EXISTS` events. Stats CTE filters healed `occurred_at` to `[from, to)` (epoch ≥ 1e12 still pulled as millis). Bounce/open buckets use first event in range per Notification. Product/tech: [prd/email-tracking.md](prd/email-tracking.md), [trd/email-tracking.md](trd/email-tracking.md).
 
 ## 7. Cancellation, reschedule, no-show
 

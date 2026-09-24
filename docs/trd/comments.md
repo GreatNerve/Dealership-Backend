@@ -14,6 +14,7 @@ Useful:
 - Why Manual Notification has `reminder_id` null (it is not “is it time?”).
 - Why Delivery Events are append-only (opened/bounce must not overwrite worker SENT/DEAD_LETTER).
 - Why bounce/open stats buckets use `min(occurred_at)` in range (so daily bars sum to the distinct headline).
+- Why provider `BLOCKED` counts as bounce (reject, same Staff count as soft/hard bounce).
 - Why a webhook JSON array is capped at 100 (one transaction; a valid secret must not hold the pool).
 - Why Brevo `ts_epoch` ≥ 1e12 is milliseconds (`Instant.ofEpochMilli`); seconds stay below that until year 33658. Storing millis as seconds yields year ~58699.
 - Why a long `provider_event_id` is SHA-256 hex (`Inputs.fit`) instead of a 255-char prefix (unique index; prefixes collide).

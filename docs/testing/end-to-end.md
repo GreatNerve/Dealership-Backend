@@ -61,13 +61,17 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 
 ## Delivery webhook
 
+Email tracking: [prd/email-tracking.md](../prd/email-tracking.md), [trd/email-tracking.md](../trd/email-tracking.md).
+
+- `POST /webhooks/delivery/stub` with Bearer secret and Correlation Key = Notification id → one `OPENED` (or mapped type) row. Repeat same `provider_event_id` → still one row. Worker status stays `SENT`. Missing/invalid secret → 401. Unknown Notification id → 204. Unmapped event → 204, no row. Array larger than 100 → 400. Long `provider_event_id` still one row.
+
 - `POST /webhooks/delivery/stub` with Bearer secret and Correlation Key = Notification id → one `OPENED` (or mapped type) row. Repeat same `provider_event_id` → still one row. Worker status stays `SENT`. Missing/invalid secret → 401. Unknown Notification id → 204. Unmapped event → 204, no row. Array larger than 100 → 400. Long `provider_event_id` still one row.
 
 ## Filters and stats
 
 - `GET /appointments?from=&to=&status=` filters `scheduled_at` (Instant). Frontend “today” is those params, not a server `date=`.
 - `GET /notifications?from=&to=&generation=MANUAL&hasEvent=OPENED` is home Dealership only.
-- `GET /notifications/stats?from=&to=` returns appointment / sent / opened / bounce / failed counts. `GET /appointments/stats` returns confirmed / cancelled / completed / no-show. Optional `bucket=DAY|WEEK|MONTH` adds zero-filled `buckets[]` (max 400 slices). `GET /dashboard/stats` returns both. Opened/bounce counts include events whose stored `occurred_at` was millis-as-seconds (year ~58699). Customer → 403. Other shop’s Staff sees zeros for this shop’s data (or 404 if no home membership).
+- `GET /notifications/stats?from=&to=` returns appointment / sent / opened / bounce / failed counts. `GET /appointments/stats` returns confirmed / cancelled / completed / no-show. Optional `bucket=DAY|WEEK|MONTH` adds zero-filled `buckets[]` (max 400 slices); omit `bucket` for totals only. `GET /dashboard/stats` returns both. Omit-bucket dashboard year totals vs `bucket=DAY` last 7 days are two calls. Opened/bounce counts include `BLOCKED` and events whose stored `occurred_at` was millis-as-seconds (year ~58699). Customer → 403. Other shop’s Staff sees zeros for this shop’s data (or 404 if no home membership).
 
 ## Failures the e2e suite must cover
 

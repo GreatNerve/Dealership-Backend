@@ -42,6 +42,7 @@ class DeliveryWebhookAdapterTest {
             """
                 .formatted(id));
     var ingest = new BrevoDeliveryWebhookAdapter().parse(node).orElseThrow();
+    assertEquals(DeliveryEventType.BLOCKED, ingest.type());
     assertEquals(Instant.ofEpochMilli(1_758_660_000_000L), ingest.occurredAt());
   }
 

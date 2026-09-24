@@ -466,10 +466,11 @@ public class NotificationService {
             List.of(
                 DeliveryEventType.OPENED,
                 DeliveryEventType.SOFT_BOUNCE,
-                DeliveryEventType.HARD_BOUNCE))) {
+                DeliveryEventType.HARD_BOUNCE,
+                DeliveryEventType.BLOCKED))) {
       if (flag.getEventType() == DeliveryEventType.OPENED) {
         opened.add(flag.getNotificationId());
-      } else {
+      } else if (DeliveryEventType.bounce(flag.getEventType())) {
         bounced.add(flag.getNotificationId());
       }
     }
@@ -494,11 +495,7 @@ public class NotificationService {
             || timeline.stream().anyMatch(e -> e.eventType() == DeliveryEventType.OPENED);
     boolean bounced =
         bouncedIds.contains(row.getId())
-            || timeline.stream()
-                .anyMatch(
-                    e ->
-                        e.eventType() == DeliveryEventType.SOFT_BOUNCE
-                            || e.eventType() == DeliveryEventType.HARD_BOUNCE);
+            || timeline.stream().anyMatch(e -> DeliveryEventType.bounce(e.eventType()));
     return new NotificationDtos.NotificationResponse(
         row.getId(),
         row.getDealershipId(),
@@ -524,12 +521,7 @@ public class NotificationService {
       NotificationEntity row, AppointmentDtos.AppointmentResponse appointment) {
     var timeline = timelines(List.of(row.getId())).getOrDefault(row.getId(), List.of());
     boolean opened = timeline.stream().anyMatch(e -> e.eventType() == DeliveryEventType.OPENED);
-    boolean bounced =
-        timeline.stream()
-            .anyMatch(
-                e ->
-                    e.eventType() == DeliveryEventType.SOFT_BOUNCE
-                        || e.eventType() == DeliveryEventType.HARD_BOUNCE);
+    boolean bounced = timeline.stream().anyMatch(e -> DeliveryEventType.bounce(e.eventType()));
     return new NotificationDtos.NotificationResponse(
         row.getId(),
         row.getDealershipId(),

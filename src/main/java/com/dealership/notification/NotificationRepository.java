@@ -113,7 +113,7 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
                   WHERE n.dealership_id = :shop AND n.status = 'DEAD_LETTER'
                     AND n.updated_at >= :fromTs AND n.updated_at < :toTs),
                 (SELECT count(DISTINCT ev.notification_id) FROM ev
-                  WHERE ev.event_type IN ('SOFT_BOUNCE', 'HARD_BOUNCE')
+                  WHERE ev.event_type IN ('SOFT_BOUNCE', 'HARD_BOUNCE', 'BLOCKED')
                     AND ev.occurred_at >= :fromTs AND ev.occurred_at < :toTs)
               """,
       nativeQuery = true)
@@ -151,7 +151,7 @@ SELECT date_trunc(CAST(:bucketUnit AS text), x.first_at AT TIME ZONE d.timezone)
 FROM (
   SELECT ev.notification_id, ev.dealership_id, min(ev.occurred_at) AS first_at
   FROM ev
-  WHERE ev.event_type IN ('SOFT_BOUNCE', 'HARD_BOUNCE')
+  WHERE ev.event_type IN ('SOFT_BOUNCE', 'HARD_BOUNCE', 'BLOCKED')
     AND ev.occurred_at >= :fromTs AND ev.occurred_at < :toTs
   GROUP BY ev.notification_id, ev.dealership_id
 ) x

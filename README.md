@@ -1,6 +1,6 @@
 # Dealership Appointment API
 
-Vehicle-service **Appointment** booking and **Reminder** delivery. Modular Spring Boot monolith.
+Vehicle-service **Appointment** booking, **Reminder** delivery, and **email tracking** (Delivery Events: opened / bounce). Modular Spring Boot monolith.
 
 Public host: [https://dealership.greatnerve.com](https://dealership.greatnerve.com)
 
@@ -76,13 +76,15 @@ Default Notification Mode is **stub**. Set `APP_NOTIFICATIONS_MODE=smtp` to send
 
 ## Flow
 
-The **controller** saves the Appointment and Reminder schedule. The **poller** watches the clock and creates the Notification. The **worker** sends it. Postgres does not create the booking.
+**One Spring Boot JVM.** PostgreSQL, RabbitMQ, and Redis are the other processes. Reminder poller, `OutboxPublisher`, and `MailWorker` are threads in that JVM — not three app boxes.
+
+The **controller** saves the Appointment and Reminder schedule. `ReminderScheduler` claims due Reminders and writes Notification + outbox (**no AMQP in that transaction**). `OutboxPublisher` drains outbox to RabbitMQ. `MailWorker` (`@RabbitListener`, 2–4 threads) sends. Postgres does not create the booking.
 
 ```mermaid
 flowchart TB
   Client["POST /appointments"]
 
-  subgraph controller [Controller]
+  subgraph controller [Controller — same JVM]
     direction TB
     A1["1. Validate + Idempotency-Key"]
     A2["2. INSERT Appointment CONFIRMED"]
@@ -93,19 +95,24 @@ flowchart TB
 
   Wait["Wait until due. If worker was down, send only inside Send Window"]
 
-  subgraph poller [Poller]
+  subgraph reminderPoller [ReminderScheduler — same JVM]
     direction TB
     P1["1. Mark Reminder EXPIRED if past midpoint"]
     P2["2. Mark Appointment NO_SHOW if past grace"]
-    P3["3. Claim one due Reminder — SKIP LOCKED"]
-    P4["4. INSERT Notification PENDING"]
-    P5["5. INSERT outbox and publish to RabbitMQ"]
-    P1 --> P2 --> P3 --> P4 --> P5
+    P3["3. Claim a Claim Batch of due Reminders — SKIP LOCKED"]
+    P4["4. INSERT Notification PENDING + outbox row — commit, no AMQP"]
+    P1 --> P2 --> P3 --> P4
   end
 
-  subgraph worker [Worker 2 to 4]
+  subgraph publisher [OutboxPublisher — same JVM]
+    O1["SKIP LOCKED claim outbox, convertAndSend, mark PUBLISHED"]
+  end
+
+  RMQ[RabbitMQ broker]
+
+  subgraph worker [MailWorker 2 to 4 threads — same JVM]
     direction TB
-    W1["1. Renew lease while sending"]
+    W1["1. @RabbitListener, renew lease while sending"]
     W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
     W3["3. Mark SENT on reminders and notifications"]
     W1 --> W2 --> W3
@@ -114,12 +121,34 @@ flowchart TB
   Retry["RETRY_SCHEDULED on both tables — poller claims again"]
   Dead["DEAD_LETTER on reminders and notifications — Staff replay"]
 
-  Client --> controller --> Wait --> poller --> worker
-  worker -->|transient fail| Retry --> poller
+  Client --> controller --> Wait --> reminderPoller --> publisher --> RMQ --> worker
+  worker -->|transient fail| Retry --> reminderPoller
   worker -->|permanent or max attempts| Dead
 ```
 
 Runtime detail: [docs/architecture.md](docs/architecture.md). Uniqueness: [docs/testing/uniqueness-and-concurrency.md](docs/testing/uniqueness-and-concurrency.md).
+
+## Email tracking (Delivery Events)
+
+**Additional feature** on top of send: worker **SENT** is SMTP 250. Opened, delivered, click, and soft/hard bounce are **Delivery Events** — append-only rows. They do **not** overwrite Notification `SENT` / `DEAD_LETTER`.
+
+SMTP sets Correlation Key = Notification UUID (Brevo header `X-Mailin-custom`). Provider posts `POST /webhooks/delivery/{provider}` with `APP_DELIVERY_WEBHOOK_SECRET` (not User JWT). Unknown Notification → 204. Duplicate provider event id → one row.
+
+Staff see the timeline on `GET /notifications/{id}` (latest first) and on Appointment detail. List flags `opened` / `bounced` come from `EXISTS` on those events. Dashboard Opened / Bounced use the same log (healed `occurred_at`). Channel is **EMAIL** in v1.
+
+```mermaid
+flowchart LR
+  SMTP["MailWorker SMTP 250 → Notification SENT"]
+  Provider[Brevo]
+  Hook["POST /webhooks/delivery/brevo"]
+  Evt["notification_delivery_events"]
+  UI["Staff: Opened / Bounced badges + timeline"]
+
+  SMTP --> Provider
+  Provider -->|Authorization secret| Hook --> Evt --> UI
+```
+
+Product: [docs/prd/email-tracking.md](docs/prd/email-tracking.md). Tech: [docs/trd/email-tracking.md](docs/trd/email-tracking.md). Why: [docs/adr/0012-smtp-correlation-and-delivery-events.md](docs/adr/0012-smtp-correlation-and-delivery-events.md).
 
 ## Docs index
 
@@ -147,7 +176,8 @@ Start with the folder READMEs, then open the file for that topic. Terms live in 
 | One Confirmed per Vehicle | [prd/appointment.md](docs/prd/appointment.md) | [trd/data-model.md](docs/trd/data-model.md) | [decision/one-appointment-per-vehicle.md](docs/decision/one-appointment-per-vehicle.md), [adr/0006](docs/adr/0006-one-confirmed-appointment-per-vehicle.md) |
 | Reminder | [prd/reminder.md](docs/prd/reminder.md) | [trd/reminder.md](docs/trd/reminder.md) | [decision/send-window-and-config.md](docs/decision/send-window-and-config.md) |
 | Send window (24h / 2h) | [prd/reminder.md](docs/prd/reminder.md) | [trd/time.md](docs/trd/time.md) | [decision/send-window-and-config.md](docs/decision/send-window-and-config.md) |
-| Notification (`stub` / `smtp`, Manual, Delivery Events) | [prd/notification.md](docs/prd/notification.md) | [trd/notification.md](docs/trd/notification.md) | [decision/notification-pipeline.md](docs/decision/notification-pipeline.md), [adr/0012](docs/adr/0012-smtp-correlation-and-delivery-events.md) |
+| Notification (`stub` / `smtp`, Manual) | [prd/notification.md](docs/prd/notification.md) | [trd/notification.md](docs/trd/notification.md) | [decision/notification-pipeline.md](docs/decision/notification-pipeline.md) |
+| Email tracking (Delivery Events) | [prd/email-tracking.md](docs/prd/email-tracking.md) | [trd/email-tracking.md](docs/trd/email-tracking.md) | [decision/notification-pipeline.md](docs/decision/notification-pipeline.md), [adr/0012](docs/adr/0012-smtp-correlation-and-delivery-events.md) |
 | Time, Booking Offset, Dealership Timezone | [prd/appointment.md](docs/prd/appointment.md) | [trd/time.md](docs/trd/time.md) | [decision/utc-instant-and-booking-offset.md](docs/decision/utc-instant-and-booking-offset.md), [adr/0011](docs/adr/0011-utc-instant-booking-offset.md) |
 | Postgres clock and uniqueness | — | [trd/data-model.md](docs/trd/data-model.md) | [decision/postgres-clock-and-ledger.md](docs/decision/postgres-clock-and-ledger.md), [sql-clock](docs/decision/sql-clock-not-app-layer.md) |
 | RabbitMQ outbox | [prd/notification.md](docs/prd/notification.md) | [trd/notification.md](docs/trd/notification.md) | [decision/rabbitmq-outbox-delivery.md](docs/decision/rabbitmq-outbox-delivery.md), [adr/0002](docs/adr/0002-postgres-schedules-rabbit-delivers.md) |

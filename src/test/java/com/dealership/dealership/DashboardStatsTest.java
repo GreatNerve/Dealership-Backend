@@ -42,6 +42,18 @@ class DashboardStatsTest extends AbstractIT {
     assertTrue(dayBuckets.size() > 1);
     assertTrue(dayBuckets.size() <= 400);
 
+    ResponseEntity<Map> totalsOnly =
+        http.exchange(
+            "/api/v1/dashboard/stats?" + qs,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, totalsOnly.getStatusCode());
+    @SuppressWarnings("unchecked")
+    List<?> noBuckets =
+        (List<?>) ((Map<String, Object>) totalsOnly.getBody().get("appointments")).get("buckets");
+    assertTrue(noBuckets.isEmpty());
+
     ResponseEntity<Map> week =
         http.exchange(
             "/api/v1/dashboard/stats?" + qs + "&bucket=WEEK",
