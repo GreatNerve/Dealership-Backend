@@ -1,9 +1,11 @@
 .PHONY: help hooks fmt check test run stop deps app up down precommit appointment
 
 MAKEFLAGS += --no-print-directory
-# Windows Make resolves ./mvnw to mvnw.cmd but still passes "./mvnw" to cmd → '.' not recognized.
+# Windows Make CreateProcess-rewrites ./mvnw → mvnw.cmd but still passes "./mvnw"
+# into cmd ('.' not recognized). Bare mvnw.cmd fails under Git sh (not on PATH).
+# Always go through bash so the Unix wrapper runs.
 ifeq ($(OS),Windows_NT)
-  MVNW := mvnw.cmd
+  MVNW := bash ./mvnw
 else
   MVNW := ./mvnw
 endif
