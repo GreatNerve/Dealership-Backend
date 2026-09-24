@@ -25,6 +25,7 @@ One of each (names can differ; the *job* must not be duplicated):
 | `DeliveryWebhookAdapter` | one interface per provider (`brevo`, `stub`); maps payload → generic `DeliveryEventType` + Correlation Key. HTTP controller does not parse Brevo JSON. |
 | Offset list from config | one `@ConfigurationProperties`; bind `List<Duration>` (`APP_REMINDER_OFFSETS`) |
 | Sanitize / normalize strings | `Inputs` (trim + strip controls). JSON deserializer and query/form/header binder both call it. `Inputs.email` lowercases. `Inputs.clip` / `Inputs.fit` (hash when over max) for varchar columns |
+| Client IP for rate limit | one `ClientIps` + `Cidrs` (`X-Forwarded-For` only if `RemoteAddr` is a trusted proxy) |
 
 Do **not** invent a generic “worker framework” for two queues. Same pattern, not a new abstraction layer.
 

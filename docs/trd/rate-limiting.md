@@ -15,7 +15,7 @@ Budgets stay small so a reviewer is never locked out for minutes: **15 requests 
 | Authenticated `STAFF` | `userId` | 15 / 60s, that endpoint only |
 | `POST /webhooks/delivery/{provider}` | — | Not limited (provider bursts; Bearer secret) |
 
-Redis key shape: `{ip\|user}:{id}:{METHOD}:{path}`. IP uses `RemoteAddr` unless `app.rate-limit.trust-forwarded-for` is true.
+Redis key shape: `{ip\|user}:{id}:{METHOD}:{path}`. IP uses `RemoteAddr`. First `X-Forwarded-For` hop is used only when `app.rate-limit.trust-forwarded-for` is true **and** `RemoteAddr` is in `app.rate-limit.trusted-proxies`. Empty CIDRs = Cloudflare published ranges.
 
 Headers on limited responses: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`. On 429 also `Retry-After`. Body `RATE_LIMITED`.
 

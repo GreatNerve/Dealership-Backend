@@ -153,13 +153,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
   }
 
   private String clientIp(HttpServletRequest request) {
-    if (properties.getRateLimit().isTrustForwardedFor()) {
-      String forwarded = request.getHeader("X-Forwarded-For");
-      if (forwarded != null && !forwarded.isBlank()) {
-        return forwarded.split(",")[0].trim();
-      }
-    }
-    return request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
+    return ClientIps.resolve(
+        properties.getRateLimit().isTrustForwardedFor(),
+        properties.getRateLimit().getTrustedProxies(),
+        request.getRemoteAddr(),
+        request.getHeader("X-Forwarded-For"));
   }
 
   private static AuthPrincipal principal() {

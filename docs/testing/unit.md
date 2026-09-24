@@ -32,7 +32,8 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Inputs
 
-- `Inputs.sanitize` trims and drops ISO control / format / private-use / surrogate characters. `Inputs.multiline` keeps LF (Manual mail body). Jackson String deserialize is contextual: JSON `body` keeps LF (Manual request and outbox `MailSnapshot`); `subject` still strips it.
+- `Inputs.sanitize` trims and drops ISO control / format / private-use / surrogate characters. `Inputs.multiline` keeps LF (Manual mail body). Jackson String deserialize is contextual: `@JsonDeserialize(MultilineStringDeserializer)` keeps LF (Manual request and outbox `MailSnapshot`); `subject` still strips it.
+- Login missing-email still BCrypts a dummy hash (same path as a wrong password).
 - `Inputs.email` then lowercases. Null stays null.
 - Page `q` uses sanitize; blank after sanitize is no filter.
 
@@ -53,6 +54,7 @@ No Spring context. No containers. Public functions and policies only.
 
 - Customer vs staff capacities as numbers (default **15 / 60s** each; period never longer than 60s).
 - `POST /auth/login` and `POST /auth/register` are different keys. `GET` vs `POST /appointments` are different keys. Two Appointment ids share `GET /appointments/{id}`.
+- `X-Forwarded-For` is ignored unless `RemoteAddr` is in the trusted CIDRs (or Cloudflare defaults when the list is empty). Origin-direct spoofed XFF stays on `RemoteAddr`.
 - Instant `from`/`to` binder: `from >= to` invalid. Omitted pair = no filter.
 - `StatsBucket` DAY/WEEK/MONTH slices: shop-zone period starts covering `[from, to)`; WEEK is ISO Monday; intra-day `to` still yields that local day. More than 400 slices is invalid.
 - Delivery webhook adapter maps known Brevo-like names to the generic enum; unknown → empty; JSON array → one ingest per object; array larger than 100 → `VALIDATION_ERROR`; Correlation Key parsed as UUID from the mapped custom-header field (test uses a stub payload, not live Brevo). `ts_epoch` ≥ 1e12 is milliseconds; smaller values are seconds. `Inputs.fit` hashes strings over the varchar max.

@@ -23,10 +23,13 @@ Useful:
 - Why Booking Offset is stored on the Appointment (EC2 us-east must not format India mail in Eastern).
 - Why due times / no-show / Send Window midpoint are SQL (adjacent gap ÷ 2; do not hydrate full graphs).
 - Why Idempotency Key purge cron is UTC midnight (EC2 host zone must not pick local midnight).
-- Why JSON strings use a Jackson deserializer and query/form/header strings use `@InitBinder` (two HTTP pipelines, one `Inputs`). Manual `body` uses `Inputs.multiline` because `\n` is ISO control and the default sanitize collapsed mail to one line. The type-level String deserializer is contextual: property `body` (HTTP Manual send **and** outbox/Rabbit `MailSnapshot`) keeps LF; other JSON strings still strip it.
+- Why JSON strings use a Jackson deserializer and query/form/header strings use `@InitBinder` (two HTTP pipelines, one `Inputs`). Manual `body` uses `Inputs.multiline` because `\n` is ISO control and the default sanitize collapsed mail to one line. The type-level String deserializer is contextual: keep LF only for `@JsonDeserialize(MultilineStringDeserializer)` (Manual request and outbox `MailSnapshot`); other JSON strings still strip it.
 - Why security 401/403 write JSON in the filter (that path never reaches `GlobalExceptionHandler`).
 - Why CSP allows `'unsafe-inline'` script/style (springdoc Swagger UI).
 - Why the rate-limit Redis key includes method + path with UUID segments collapsed (per endpoint, not one global IP/user bucket; ids must not split `GET /appointments/{id}`).
+- Why login still BCrypts a dummy hash when the email is missing (same cost as a wrong password; do not 401 before `matches`).
+- Why `X-Forwarded-For` is ignored unless `RemoteAddr` is a trusted proxy CIDR (flag-on + public origin would otherwise let anyone mint a new login bucket).
+- Why stats CTE filters healed `occurred_at` to `[from, to)` and still pulls epoch ≥ 1e12 (millis-as-seconds rows are year ~58699 and would miss a sargable `occurred_at` window).
 - Why Appointment list enrichment is `findAllById` after the page, not `JOIN FETCH` (entities store UUID FKs; `JOIN FETCH` + `Page` is the Hibernate cartesian trap). The Customer `JOIN` on `vehicles.customer_id` is ownership in SQL, not a fetch of the nested JSON.
 
 ## Do not comment

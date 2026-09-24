@@ -27,6 +27,7 @@ public class AuthService {
   private final DealershipStaffRepository staff;
   private final PasswordEncoder passwords;
   private final JwtService jwt;
+  private final String dummyHash;
 
   public AuthService(
       UserRepository users,
@@ -41,6 +42,7 @@ public class AuthService {
     this.staff = staff;
     this.passwords = passwords;
     this.jwt = jwt;
+    this.dummyHash = passwords.encode("login-miss");
   }
 
   @Transactional
@@ -82,11 +84,11 @@ public class AuthService {
   public AuthDtos.TokenResponse login(AuthDtos.LoginRequest request) {
     String email = Inputs.email(request.email());
     String password = Inputs.sanitize(request.password());
-    UserEntity user =
-        users
-            .findByEmail(email)
-            .orElseThrow(() -> ApiException.unauthorized("Invalid credentials"));
-    if (password == null || !passwords.matches(password, user.getPasswordHash())) {
+    UserEntity user = users.findByEmail(email).orElse(null);
+    boolean ok =
+        Credentials.matches(
+            passwords, password, user == null ? null : user.getPasswordHash(), dummyHash);
+    if (user == null || !ok) {
       throw ApiException.unauthorized("Invalid credentials");
     }
     String token = jwt.issue(user.getId(), user.getEmail(), user.getRole());

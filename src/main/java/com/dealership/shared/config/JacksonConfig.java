@@ -42,7 +42,7 @@ public class JacksonConfig {
     public JsonDeserializer<?> createContextual(
         DeserializationContext context, BeanProperty property) {
       // Type-level String deserializer wins over @JsonDeserialize on records;
-      // outbox/Rabbit also round-trip MailSnapshot.body through this mapper.
+      // keep LF only when the property opted in (Manual body / MailSnapshot).
       if (property != null && keepNewlines(property)) {
         return KEEP;
       }
@@ -60,9 +60,6 @@ public class JacksonConfig {
     }
 
     private static boolean keepNewlines(BeanProperty property) {
-      if ("body".equals(property.getName())) {
-        return true;
-      }
       JsonDeserialize json = property.getAnnotation(JsonDeserialize.class);
       return json != null && json.using() == MultilineStringDeserializer.class;
     }

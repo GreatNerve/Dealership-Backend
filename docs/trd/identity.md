@@ -8,7 +8,7 @@
 
 Staff create Customer is `POST /customers`, not `/auth/register`. See [customer.md](customer.md).
 
-Errors: `400` validation (`VALIDATION_ERROR` for Bean Validation; same shape as other 400s), `401` bad credentials, `409` email taken, `429` rate limit.
+Errors: `400` validation (`VALIDATION_ERROR` for Bean Validation; same shape as other 400s), `401` bad credentials (missing email still BCrypts a dummy hash), `409` email taken, `429` rate limit.
 
 JSON and form strings are sanitized (`Inputs`) before validation. Email is stored lowercase.
 

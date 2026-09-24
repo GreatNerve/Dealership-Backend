@@ -164,7 +164,7 @@ flowchart LR
   Provider --> Hook --> Adapter --> Evt
 ```
 
-Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic event enum and Correlation Key. Brevo `ts_epoch` is milliseconds (≥ 1e12); seconds still parse. One transaction per POST (array max 100). Insert append-only. Duplicate unique key → no second row. Long `provider_event_id` hashed to 64 hex chars. Do not mutate worker `Notification.status`. Staff item GET returns events latest first. Staff list with `appointmentId` includes the same timeline. Staff list/stats `EXISTS` events. Stats `occurred_at` range heals epoch ≥ 1e12 as millis. Bounce/open buckets use first event in range per Notification.
+Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic event enum and Correlation Key. Brevo `ts_epoch` is milliseconds (≥ 1e12); seconds still parse. One transaction per POST (array max 100). Insert append-only. Duplicate unique key → no second row. Long `provider_event_id` hashed to 64 hex chars. Do not mutate worker `Notification.status`. Staff item GET returns events latest first. Staff list with `appointmentId` includes the same timeline. Staff list/stats `EXISTS` events. Stats CTE filters healed `occurred_at` to `[from, to)` (epoch ≥ 1e12 still pulled as millis). Bounce/open buckets use first event in range per Notification.
 
 ## 7. Cancellation, reschedule, no-show
 
@@ -177,7 +177,7 @@ v1 reads: own or home Dealership, else 404; lists paginated and searchable (`q`)
 
 ## 8. Rate limiting
 
-Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. Delivery webhooks are not limited. IP comes from `request.getRemoteAddr()` unless `app.rate-limit.trust-forwarded-for` (`APP_RATE_LIMIT_TRUST_FORWARDED_FOR`) is true, in which case the first `X-Forwarded-For` hop is used. Default **false** — do not trust that header unless a reverse proxy is in front. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out, except `POST /webhooks/delivery/{provider}` which is not limited. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
+Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. Delivery webhooks are not limited. IP comes from `request.getRemoteAddr()`. `X-Forwarded-For` is used only when `app.rate-limit.trust-forwarded-for` (`APP_RATE_LIMIT_TRUST_FORWARDED_FOR`) is true **and** `RemoteAddr` matches `app.rate-limit.trusted-proxies` (`APP_RATE_LIMIT_TRUSTED_PROXIES`). Empty CIDR list uses Cloudflare published ranges so origin-direct spoofed XFF cannot reset login buckets. Default flag **false**. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out, except `POST /webhooks/delivery/{provider}` which is not limited. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
 
 ## 9. What scales at 50k/day (sized at 500k)
 

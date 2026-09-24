@@ -76,13 +76,17 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
           + " ELSE e.occurred_at END";
 
   String EVENT_RANGE =
-      "WITH ev AS ("
-          + " SELECT e.notification_id, e.event_type, n.dealership_id, "
+      "WITH ev AS ( SELECT healed.notification_id, healed.event_type, healed.dealership_id,"
+          + " healed.occurred_at FROM ( SELECT e.notification_id, e.event_type, n.dealership_id, "
           + EVENT_AT
           + " AS occurred_at"
           + " FROM notification_delivery_events e"
           + " JOIN notifications n ON n.id = e.notification_id"
           + " WHERE n.dealership_id = :shop"
+          + " AND ((e.occurred_at >= :fromTs AND e.occurred_at < :toTs)"
+          + " OR EXTRACT(EPOCH FROM e.occurred_at) >= 1000000000000)"
+          + " ) healed"
+          + " WHERE healed.occurred_at >= :fromTs AND healed.occurred_at < :toTs"
           + ") ";
 
   @Query(

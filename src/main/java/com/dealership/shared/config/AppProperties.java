@@ -312,6 +312,7 @@ public class AppProperties {
     private long ipCapacity = 15;
     private Duration ipPeriod = Duration.ofSeconds(60);
     private boolean trustForwardedFor = false;
+    private List<String> trustedProxies = List.of();
 
     public boolean isEnabled() {
       return enabled;
@@ -391,6 +392,14 @@ public class AppProperties {
 
     public void setTrustForwardedFor(boolean trustForwardedFor) {
       this.trustForwardedFor = trustForwardedFor;
+    }
+
+    public List<String> getTrustedProxies() {
+      return trustedProxies;
+    }
+
+    public void setTrustedProxies(List<String> trustedProxies) {
+      this.trustedProxies = trustedProxies == null ? List.of() : trustedProxies;
     }
   }
 

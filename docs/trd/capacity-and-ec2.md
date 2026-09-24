@@ -25,6 +25,6 @@ Typical managed stack for this deploy:
 | RabbitMQ | CloudAMQP | Port **5671**, `SPRING_RABBITMQ_SSL_ENABLED=true`, `VIRTUAL_HOST` = user vhost |
 | SMTP | Brevo | `APP_NOTIFICATIONS_MODE=smtp` + `SPRING_MAIL_*` |
 
-**Do not** set `SPRING_PROFILES_ACTIVE=dev` on EC2 (no demo seed / local Vehicle-cap override). `APP_JWT_SECRET` must be unique and ≥ 32 bytes. Behind nginx/ALB set `APP_RATE_LIMIT_TRUST_FORWARDED_FOR=true`.
+**Do not** set `SPRING_PROFILES_ACTIVE=dev` on EC2 (no demo seed / local Vehicle-cap override). `APP_JWT_SECRET` must be unique and ≥ 32 bytes. Behind nginx/ALB/Cloudflare set `APP_RATE_LIMIT_TRUST_FORWARDED_FOR=true`. Put the proxy CIDRs in `APP_RATE_LIMIT_TRUSTED_PROXIES` (empty = Cloudflare ranges only — do not leave origin :80 open to the world if that list is not the actual proxy).
 
 Public host: `https://dealership.greatnerve.com`. Auto-size follows that instance’s CPUs; pin only to override the formula. App JVM stays UTC regardless of region (`us-east-1` vs India); see [time.md](time.md).

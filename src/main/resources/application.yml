@@ -146,3 +146,4 @@ app:
     ip-capacity: ${APP_RATE_LIMIT_IP_CAPACITY:15}
     ip-period: ${APP_RATE_LIMIT_IP_PERIOD:60s}
     trust-forwarded-for: ${APP_RATE_LIMIT_TRUST_FORWARDED_FOR:false}
+    trusted-proxies: ${APP_RATE_LIMIT_TRUSTED_PROXIES:}

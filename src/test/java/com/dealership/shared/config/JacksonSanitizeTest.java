@@ -60,5 +60,14 @@ class JacksonSanitizeTest {
             MailSnapshot.class);
     assertEquals("HiX", snapshot.subject());
     assertEquals("Hi Dheeraj,\n\nThank you", snapshot.body());
+
+    record Other(String body) {}
+    Other other =
+        mapper.readValue(
+            """
+            {"body":"Hi\\nthere"}
+            """,
+            Other.class);
+    assertEquals("Hithere", other.body());
   }
 }
