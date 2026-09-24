@@ -1,5 +1,7 @@
 package com.dealership.notification;
 
+import com.dealership.shared.api.MultilineStringDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -25,7 +27,7 @@ public record MailSnapshot(
     int attempts,
     NotificationGeneration generation,
     String subject,
-    String body) {
+    @JsonDeserialize(using = MultilineStringDeserializer.class) String body) {
 
   public boolean fileOnly() {
     return generation == NotificationGeneration.SYSTEM && Boolean.FALSE.equals(notifyEnabled);

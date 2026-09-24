@@ -39,8 +39,16 @@ public class BrevoDeliveryWebhookAdapter implements DeliveryWebhookAdapter {
     String messageId = body.path("message-id").asText("");
     long ts = body.path("ts_epoch").asLong(0);
     String providerEventId = messageId + ":" + raw + ":" + ts;
-    Instant at = ts > 0 ? Instant.ofEpochSecond(ts) : Instant.now();
-    return Optional.of(new Ingest(id, type, providerEventId, at, raw));
+    return Optional.of(new Ingest(id, type, providerEventId, occurredAt(ts), raw));
+  }
+
+  // Brevo ts_epoch is milliseconds; ts / tests may send seconds. Seconds stay < 1e12 until year
+  // 33658.
+  static Instant occurredAt(long ts) {
+    if (ts <= 0) {
+      return Instant.now();
+    }
+    return ts >= 1_000_000_000_000L ? Instant.ofEpochMilli(ts) : Instant.ofEpochSecond(ts);
   }
 
   private static DeliveryEventType map(String raw) {

@@ -9,6 +9,7 @@ import com.dealership.shared.api.ApiErrorCode;
 import com.dealership.shared.api.ApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +29,20 @@ class DeliveryWebhookAdapterTest {
     var ingest = new BrevoDeliveryWebhookAdapter().parse(node).orElseThrow();
     assertEquals(id, ingest.notificationId());
     assertEquals(DeliveryEventType.OPENED, ingest.type());
+    assertEquals(Instant.ofEpochSecond(1_700_000_000L), ingest.occurredAt());
+  }
+
+  @Test
+  void brevoTsEpochMillisecondsNotSeconds() throws Exception {
+    UUID id = UUID.randomUUID();
+    var node =
+        mapper.readTree(
+            """
+            {"event":"blocked","X-Mailin-custom":"%s","message-id":"m1","ts_epoch":1758660000000}
+            """
+                .formatted(id));
+    var ingest = new BrevoDeliveryWebhookAdapter().parse(node).orElseThrow();
+    assertEquals(Instant.ofEpochMilli(1_758_660_000_000L), ingest.occurredAt());
   }
 
   @Test

@@ -11,7 +11,7 @@
 7. As a Customer, I want a Vehicle freed 1 hour after `scheduledAt` if still Confirmed, so that a no-show does not lock the car.
 8. As a Customer, I want to GET my own Appointments (by id and paginated, searchable list) using the **Booking Offset** I sent on `scheduledAt`, with Customer, Vehicle, and Dealership nested (not ids only).
 9. As a Staff Member, I want to GET Appointments at my home Dealership only (paginated, searchable list) in **Dealership Timezone**, with the same nested Customer, Vehicle, and Dealership.
-10. As a Staff Member, I want to GET that Appointment’s Reminder **history** (all Schedule Versions) and nested Notifications (offset, send time, status, failure reason), so reschedule does not hide prior mail. The UI lists **this visit** then **previous booking**, not version numbers.
+10. As a Staff Member, I want to GET that Appointment’s Reminder **history** (all Schedule Versions) and nested Notifications (offset, send time, status, failure reason), so reschedule does not hide prior mail. The UI lists **this visit** then **previous booking**, not version numbers. While a send is in flight, or a Reminder is due within a few minutes, the Appointment detail **silently refetches** Reminders and Notifications so PENDING → SENT → Opened appears without a full reload.
 11. As a Staff Member, I want Instant `from`/`to` on the Appointment list (`scheduled_at`) plus `status`, so the frontend can filter “today” in **Dealership Timezone**.
 12. As a Staff Member, I want to mark a Confirmed Appointment **Completed** when the visit is done, so the Vehicle is free and unsent Reminders stop.
 13. As a Staff Member, I want to send a **Manual** Notification from that Appointment (`POST /appointments/{id}/notifications`).

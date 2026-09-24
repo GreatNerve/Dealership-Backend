@@ -10,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 public interface NotificationDeliveryEventRepository
     extends JpaRepository<NotificationDeliveryEventEntity, UUID> {
 
-  List<NotificationDeliveryEventEntity> findByNotificationIdOrderByOccurredAtAsc(
+  List<NotificationDeliveryEventEntity> findByNotificationIdOrderByOccurredAtDescCreatedAtDesc(
       UUID notificationId);
 
   List<NotificationDeliveryEventEntity> findByNotificationIdIn(Collection<UUID> notificationIds);

@@ -67,7 +67,7 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 
 - `GET /appointments?from=&to=&status=` filters `scheduled_at` (Instant). Frontend “today” is those params, not a server `date=`.
 - `GET /notifications?from=&to=&generation=MANUAL&hasEvent=OPENED` is home Dealership only.
-- `GET /notifications/stats?from=&to=` returns appointment / sent / opened / bounce / failed counts. `GET /appointments/stats` returns confirmed / cancelled / completed / no-show. Optional `bucket=DAY|WEEK|MONTH` adds zero-filled `buckets[]` (max 400 slices). `GET /dashboard/stats` returns both. Customer → 403. Other shop’s Staff sees zeros for this shop’s data (or 404 if no home membership).
+- `GET /notifications/stats?from=&to=` returns appointment / sent / opened / bounce / failed counts. `GET /appointments/stats` returns confirmed / cancelled / completed / no-show. Optional `bucket=DAY|WEEK|MONTH` adds zero-filled `buckets[]` (max 400 slices). `GET /dashboard/stats` returns both. Opened/bounce counts include events whose stored `occurred_at` was millis-as-seconds (year ~58699). Customer → 403. Other shop’s Staff sees zeros for this shop’s data (or 404 if no home membership).
 
 ## Failures the e2e suite must cover
 

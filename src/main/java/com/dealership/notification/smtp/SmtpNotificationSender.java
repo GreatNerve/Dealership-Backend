@@ -31,26 +31,14 @@ public class SmtpNotificationSender implements NotificationSender {
   @Override
   public void send(MailSnapshot snapshot, UUID correlationId, Map<String, String> headers)
       throws NotificationFailedException {
-    String subject;
-    String text;
-    String html;
-    if (snapshot.manual()) {
-      subject = snapshot.subject();
-      text = snapshot.body();
-      html = "<pre>" + escape(snapshot.body()) + "</pre>";
-    } else {
-      ReminderMail body = ReminderMail.of(snapshot);
-      subject = body.subject();
-      text = body.text();
-      html = body.html();
-    }
+    ReminderMail body = ReminderMail.of(snapshot);
     try {
       MimeMessage message = mail.createMimeMessage();
       MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
       helper.setFrom(properties.getNotifications().getFrom(), "Dealership");
       helper.setTo(snapshot.contact());
-      helper.setSubject(subject);
-      helper.setText(text, html);
+      helper.setSubject(body.subject());
+      helper.setText(body.text(), body.html());
       if (headers != null) {
         for (var header : headers.entrySet()) {
           message.setHeader(header.getKey(), header.getValue());
@@ -69,12 +57,5 @@ public class SmtpNotificationSender implements NotificationSender {
       }
       throw new NotificationFailedException("smtp failed", true, ex);
     }
-  }
-
-  private static String escape(String raw) {
-    if (raw == null) {
-      return "";
-    }
-    return raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
   }
 }

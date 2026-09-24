@@ -1,6 +1,8 @@
 package com.dealership.notification;
 
 import com.dealership.appointment.AppointmentDtos;
+import com.dealership.shared.api.MultilineStringDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
@@ -12,7 +14,9 @@ public final class NotificationDtos {
   private NotificationDtos() {}
 
   public record ManualSendRequest(
-      @NotBlank @Size(max = 255) String subject, @NotBlank @Size(max = 8000) String body) {}
+      @NotBlank @Size(max = 255) String subject,
+      @NotBlank @Size(max = 8000) @JsonDeserialize(using = MultilineStringDeserializer.class)
+          String body) {}
 
   public record NotificationResponse(
       UUID id,

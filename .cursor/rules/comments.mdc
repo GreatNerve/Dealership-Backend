@@ -7,6 +7,6 @@ alwaysApply: true
 
 When writing or editing Java (only after the user asks to implement):
 
-- Comment **only** a non-obvious why (SKIP LOCKED, Claim Batch from CPUs / 500k-day floor not a guessed poll multiplier, lease vs SMTP timeout, mail-* owner blocks a second send, dead-letter replay reopens PROCESSING, no outbox at create, unique index as proof, no PII in logs, Booking Offset stored so EC2 host zone is unused, clock math in SQL so we do not load full graphs, webhook array cap 100, hash long provider_event_id, first-event bounce/open buckets).
+- Comment **only** a non-obvious why (SKIP LOCKED, Claim Batch from CPUs / 500k-day floor not a guessed poll multiplier, lease vs SMTP timeout, mail-* owner blocks a second send, dead-letter replay reopens PROCESSING, no outbox at create, unique index as proof, no PII in logs, Booking Offset stored so EC2 host zone is unused, clock math in SQL so we do not load full graphs, webhook array cap 100, hash long provider_event_id, first-event bounce/open buckets, Brevo ts_epoch millis vs seconds, Manual body keeps LF).
 - Do **not** comment what the code already says. No banners, no “added this”, no Javadoc on every record.
 - Prefer a clear name over a comment.

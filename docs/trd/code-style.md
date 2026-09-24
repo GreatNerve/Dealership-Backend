@@ -18,7 +18,7 @@ One of each (names can differ; the *job* must not be duplicated):
 | Mail Local Wall Time from Instant + offset | one formatter (HTTP Customer GET and mail) |
 | Instant `from`/`to` query bind | one shared binder (Appointments, Notifications, stats) |
 | Stats `DAY`/`WEEK`/`MONTH` slices | one `StatsBucket` (zero-filled `buckets[]` in shop TZ) |
-| Reminder mail subject / text / HTML | one `ReminderMail` from the outbox snapshot (**SYSTEM** only) |
+| Reminder mail subject / text / HTML | one `ReminderMail` from the outbox snapshot (**SYSTEM** visit card; **Manual** wraps stored body in the same HTML shell) |
 | Reminder due-time `INSERT … SELECT` | one SQL, used by create **and** reschedule |
 | SKIP LOCKED claim + lease heartbeat | one lease helper; Reminder and outbox pass table/SQL, not two copy-pasted workers |
 | `NotificationSender` | one interface; stub and SMTP implement it; mode flag picks the bean. SMTP sets Correlation Key via a generic headers map. `notify: false` uses `FileNotificationLog` (`logs/notifications.log`) on the System due path, not this interface |

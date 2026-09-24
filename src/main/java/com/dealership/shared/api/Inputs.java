@@ -11,13 +11,26 @@ public final class Inputs {
   private Inputs() {}
 
   public static String sanitize(String raw) {
+    return sanitize(raw, false);
+  }
+
+  // Mail body keeps LF; global JSON sanitize strips it (ISO control) so paragraphs collapsed.
+  public static String multiline(String raw) {
+    return sanitize(raw, true);
+  }
+
+  private static String sanitize(String raw, boolean keepNewlines) {
     if (raw == null) {
       return null;
     }
     StringBuilder out = new StringBuilder(raw.length());
     for (int i = 0; i < raw.length(); ) {
       int cp = raw.codePointAt(i);
-      if (!isStripped(cp)) {
+      if (keepNewlines && cp == '\r') {
+        i += Character.charCount(cp);
+        continue;
+      }
+      if ((keepNewlines && (cp == '\n' || cp == '\t')) || !isStripped(cp)) {
         out.appendCodePoint(cp);
       }
       i += Character.charCount(cp);

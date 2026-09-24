@@ -31,6 +31,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -110,7 +112,7 @@ public class NotificationService {
     ResourceAccess.requireVisible(
         appointment.getDealershipId().equals(membership.getDealershipId()));
     String cleanSubject = requireText(subject, "subject");
-    String cleanBody = requireText(body, "body");
+    String cleanBody = requireMultiline(body, "body");
     var begin =
         idempotency.begin(
             user.userId(),
@@ -137,7 +139,12 @@ public class NotificationService {
         outbox(OutboxEventType.MANUAL_NOTIFICATION, row.getId(), manualSnapshot(row, facts, 0)));
     var response =
         toListItem(
-            row, false, java.util.Set.of(), java.util.Set.of(), appointmentView(appointmentId));
+            row,
+            false,
+            java.util.Set.of(),
+            java.util.Set.of(),
+            List.of(),
+            appointmentView(appointmentId));
     idempotency.complete(begin.row(), row.getId(), response);
     return response;
   }
@@ -229,6 +236,10 @@ public class NotificationService {
             pages.pageable(query));
     var ids = page.getContent().stream().map(NotificationEntity::getId).toList();
     var flags = eventFlags(ids);
+    var byEvents =
+        appointmentId != null
+            ? timelines(ids)
+            : Map.<UUID, List<NotificationDtos.DeliveryEventView>>of();
     var byAppointment =
         appointmentViews.mapByIds(
             page.getContent().stream()
@@ -244,6 +255,7 @@ public class NotificationService {
                     false,
                     flags.opened(),
                     flags.bounced(),
+                    byEvents.getOrDefault(row.getId(), List.of()),
                     byAppointment.get(row.getAppointmentId()))));
   }
 
@@ -475,7 +487,18 @@ public class NotificationService {
       boolean includeBody,
       java.util.Set<UUID> openedIds,
       java.util.Set<UUID> bouncedIds,
+      List<NotificationDtos.DeliveryEventView> timeline,
       AppointmentDtos.AppointmentResponse appointment) {
+    boolean opened =
+        openedIds.contains(row.getId())
+            || timeline.stream().anyMatch(e -> e.eventType() == DeliveryEventType.OPENED);
+    boolean bounced =
+        bouncedIds.contains(row.getId())
+            || timeline.stream()
+                .anyMatch(
+                    e ->
+                        e.eventType() == DeliveryEventType.SOFT_BOUNCE
+                            || e.eventType() == DeliveryEventType.HARD_BOUNCE);
     return new NotificationDtos.NotificationResponse(
         row.getId(),
         row.getDealershipId(),
@@ -491,21 +514,15 @@ public class NotificationService {
         row.getNextAttemptAt(),
         includeBody ? row.getSubject() : null,
         includeBody ? row.getBody() : null,
-        openedIds.contains(row.getId()),
-        bouncedIds.contains(row.getId()),
-        List.of(),
+        opened,
+        bounced,
+        timeline,
         appointment);
   }
 
   private NotificationDtos.NotificationResponse toDetail(
       NotificationEntity row, AppointmentDtos.AppointmentResponse appointment) {
-    var timeline =
-        events.findByNotificationIdOrderByOccurredAtAsc(row.getId()).stream()
-            .map(
-                e ->
-                    new NotificationDtos.DeliveryEventView(
-                        e.getEventType(), e.getOccurredAt(), e.getProvider()))
-            .toList();
+    var timeline = timelines(List.of(row.getId())).getOrDefault(row.getId(), List.of());
     boolean opened = timeline.stream().anyMatch(e -> e.eventType() == DeliveryEventType.OPENED);
     boolean bounced =
         timeline.stream()
@@ -534,8 +551,38 @@ public class NotificationService {
         appointment);
   }
 
+  private Map<UUID, List<NotificationDtos.DeliveryEventView>> timelines(Collection<UUID> ids) {
+    if (ids.isEmpty()) {
+      return Map.of();
+    }
+    Map<UUID, List<NotificationDtos.DeliveryEventView>> out = new HashMap<>();
+    for (NotificationDeliveryEventEntity row : events.findByNotificationIdIn(ids)) {
+      out.computeIfAbsent(row.getNotificationId(), ignored -> new ArrayList<>())
+          .add(
+              new NotificationDtos.DeliveryEventView(
+                  row.getEventType(), deliveryOccurredAt(row.getOccurredAt()), row.getProvider()));
+    }
+    for (List<NotificationDtos.DeliveryEventView> list : out.values()) {
+      list.sort(Comparator.comparing(NotificationDtos.DeliveryEventView::occurredAt).reversed());
+    }
+    return out;
+  }
+
+  // Rows ingested before V912 stored Brevo ts_epoch as seconds (year ~58699).
+  private static Instant deliveryOccurredAt(Instant at) {
+    long sec = at.getEpochSecond();
+    return sec >= 1_000_000_000_000L ? Instant.ofEpochMilli(sec) : at;
+  }
+
   private static String requireText(String raw, String field) {
-    String cleaned = com.dealership.shared.api.Inputs.sanitize(raw);
+    return requireCleaned(Inputs.sanitize(raw), field);
+  }
+
+  private static String requireMultiline(String raw, String field) {
+    return requireCleaned(Inputs.multiline(raw), field);
+  }
+
+  private static String requireCleaned(String cleaned, String field) {
     if (cleaned == null || cleaned.isBlank()) {
       throw ApiException.of(ApiErrorCode.VALIDATION_ERROR, field + " is required");
     }

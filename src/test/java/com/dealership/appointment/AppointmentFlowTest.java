@@ -1595,6 +1595,32 @@ WHERE notification_id = ? AND provider_event_id <> 'e1' AND provider_event_id <>
     @SuppressWarnings("unchecked")
     Map<String, Object> mail = (Map<String, Object>) dash.getBody().get("notifications");
     assertTrue(((Number) mail.get("opened")).intValue() >= 1);
+
+    jdbc.update(
+        """
+        UPDATE notification_delivery_events
+        SET occurred_at = to_timestamp(EXTRACT(EPOCH FROM occurred_at) * 1000.0)
+        WHERE notification_id = ? AND event_type = 'OPENED'
+        """,
+        notificationId);
+    ResponseEntity<Map> millisStats =
+        http.exchange(
+            "/api/v1/notifications/stats?from=" + from + "&to=" + to,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, millisStats.getStatusCode());
+    assertTrue(((Number) millisStats.getBody().get("opened")).intValue() >= 1);
+
+    ResponseEntity<Map> byVisit =
+        http.exchange(
+            "/api/v1/notifications?appointmentId=" + appointmentId + "&size=100",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, byVisit.getStatusCode());
+    assertTrue(byVisit.getBody().toString().contains("OPENED"));
+    assertTrue(byVisit.getBody().toString().contains("opened=true"));
   }
 
   @Test

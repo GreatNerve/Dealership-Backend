@@ -7,7 +7,7 @@ No Spring context. No containers. Public functions and policies only.
 - Offsets come from config; default 24h and 2h (strings bound as SQL `interval` — do not reimplement subtraction in unit tests).
 - Offset input (`+05:30`) normalises to the same Instant for HTTP parse.
 - Format Instant + stored `display_offset` `+05:30` → Local Wall Time `22:00 UTC+05:30`, not `16:30Z` as the mail string.
-- `ReminderMail` HTML + text: local clock `10:00 PM` (no “UTC”), Vehicle make/model/year + Vehicle Number, `Hi {name},` only when name is set, no “2-hour reminder”, dealership name HTML-escaped.
+- `ReminderMail` HTML + text: local clock `10:00 PM` (no “UTC”), Vehicle make/model/year + Vehicle Number, `Hi {name},` only when name is set, no “2-hour reminder”, dealership name HTML-escaped. **Manual** uses the same HTML shell; stored body paragraphs stay.
 - Same Instant + Dealership Timezone for staff display helper (shop zone).
 - Formatter never uses `ZoneId.systemDefault()` (EC2 us-east must not leak).
 
@@ -32,7 +32,7 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Inputs
 
-- `Inputs.sanitize` trims and drops ISO control / format / private-use / surrogate characters.
+- `Inputs.sanitize` trims and drops ISO control / format / private-use / surrogate characters. `Inputs.multiline` keeps LF (Manual mail body). Jackson String deserialize is contextual: JSON `body` keeps LF (Manual request and outbox `MailSnapshot`); `subject` still strips it.
 - `Inputs.email` then lowercases. Null stays null.
 - Page `q` uses sanitize; blank after sanitize is no filter.
 
@@ -55,7 +55,7 @@ No Spring context. No containers. Public functions and policies only.
 - `POST /auth/login` and `POST /auth/register` are different keys. `GET` vs `POST /appointments` are different keys. Two Appointment ids share `GET /appointments/{id}`.
 - Instant `from`/`to` binder: `from >= to` invalid. Omitted pair = no filter.
 - `StatsBucket` DAY/WEEK/MONTH slices: shop-zone period starts covering `[from, to)`; WEEK is ISO Monday; intra-day `to` still yields that local day. More than 400 slices is invalid.
-- Delivery webhook adapter maps known Brevo-like names to the generic enum; unknown → empty; JSON array → one ingest per object; array larger than 100 → `VALIDATION_ERROR`; Correlation Key parsed as UUID from the mapped custom-header field (test uses a stub payload, not live Brevo). `Inputs.fit` hashes strings over the varchar max.
+- Delivery webhook adapter maps known Brevo-like names to the generic enum; unknown → empty; JSON array → one ingest per object; array larger than 100 → `VALIDATION_ERROR`; Correlation Key parsed as UUID from the mapped custom-header field (test uses a stub payload, not live Brevo). `ts_epoch` ≥ 1e12 is milliseconds; smaller values are seconds. `Inputs.fit` hashes strings over the varchar max.
 - `NotificationSender` SMTP path is given `correlationId`; unit test does not assert the Brevo header name (that is the adapter).
 
 ## What unit tests must not do

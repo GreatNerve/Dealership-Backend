@@ -44,6 +44,42 @@ class ReminderMailTest {
   }
 
   @Test
+  void staffMailUsesSameHtmlShellAndKeepsParagraphs() {
+    MailSnapshot snapshot =
+        new MailSnapshot(
+            null,
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            null,
+            null,
+            Instant.parse("2026-09-22T16:30:00Z"),
+            "+05:30",
+            "North Shop",
+            "Dheeraj",
+            "Honda",
+            "Civic",
+            2022,
+            "KA01AB1234",
+            "customer@example.com",
+            "key",
+            true,
+            0,
+            NotificationGeneration.MANUAL,
+            "We hope to see you again at North Shop",
+            "Hi Dheeraj,\n\nThank you for bringing KA01AB1234 in.\n\nNorth Shop");
+    ReminderMail mail = ReminderMail.of(snapshot);
+    assertEquals("We hope to see you again at North Shop", mail.subject());
+    assertTrue(mail.text().contains("Hi Dheeraj,\n\nThank you"));
+    assertTrue(mail.html().contains("#efe8dc"));
+    assertTrue(mail.html().contains("Hi Dheeraj,"));
+    assertTrue(mail.html().contains("Thank you for bringing KA01AB1234 in."));
+    assertTrue(mail.html().contains("<br>"));
+    assertFalse(mail.html().contains("Hi Dheeraj,Thank you"));
+    assertFalse(mail.html().contains("<script>"));
+  }
+
+  @Test
   void vehicleLine() {
     assertEquals(
         "2022 Honda Civic · KA01AB1234", ReminderMail.vehicleLine(snapshot(120, "North Shop")));

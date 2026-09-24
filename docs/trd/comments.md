@@ -15,6 +15,7 @@ Useful:
 - Why Delivery Events are append-only (opened/bounce must not overwrite worker SENT/DEAD_LETTER).
 - Why bounce/open stats buckets use `min(occurred_at)` in range (so daily bars sum to the distinct headline).
 - Why a webhook JSON array is capped at 100 (one transaction; a valid secret must not hold the pool).
+- Why Brevo `ts_epoch` ≥ 1e12 is milliseconds (`Instant.ofEpochMilli`); seconds stay below that until year 33658. Storing millis as seconds yields year ~58699.
 - Why a long `provider_event_id` is SHA-256 hex (`Inputs.fit`) instead of a 255-char prefix (unique index; prefixes collide).
 - Why SMTP Correlation Key is the Notification UUID in a provider-mapped header (schema must not store `X-Mailin-custom`).
 - Why a unique index is the proof, not an `if`.
@@ -22,7 +23,7 @@ Useful:
 - Why Booking Offset is stored on the Appointment (EC2 us-east must not format India mail in Eastern).
 - Why due times / no-show / Send Window midpoint are SQL (adjacent gap ÷ 2; do not hydrate full graphs).
 - Why Idempotency Key purge cron is UTC midnight (EC2 host zone must not pick local midnight).
-- Why JSON strings use a Jackson deserializer and query/form/header strings use `@InitBinder` (two HTTP pipelines, one `Inputs`).
+- Why JSON strings use a Jackson deserializer and query/form/header strings use `@InitBinder` (two HTTP pipelines, one `Inputs`). Manual `body` uses `Inputs.multiline` because `\n` is ISO control and the default sanitize collapsed mail to one line. The type-level String deserializer is contextual: property `body` (HTTP Manual send **and** outbox/Rabbit `MailSnapshot`) keeps LF; other JSON strings still strip it.
 - Why security 401/403 write JSON in the filter (that path never reaches `GlobalExceptionHandler`).
 - Why CSP allows `'unsafe-inline'` script/style (springdoc Swagger UI).
 - Why the rate-limit Redis key includes method + path with UUID segments collapsed (per endpoint, not one global IP/user bucket; ids must not split `GET /appointments/{id}`).

@@ -21,4 +21,11 @@ class InputsTest {
     assertEquals(hashed, Inputs.fit(longId, 255));
     assertNotEquals(hashed, Inputs.fit("n".repeat(300), 255));
   }
+
+  @Test
+  void sanitizeDropsNewlinesMultilineKeepsThem() {
+    assertEquals("Hi Dheeraj,Thanks", Inputs.sanitize("Hi Dheeraj,\n\nThanks"));
+    assertEquals("Hi Dheeraj,\n\nThanks", Inputs.multiline("Hi Dheeraj,\r\n\r\nThanks"));
+    assertEquals("Thanks", Inputs.multiline("\u0000Thanks\u0000"));
+  }
 }

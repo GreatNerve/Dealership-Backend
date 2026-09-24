@@ -164,7 +164,7 @@ flowchart LR
   Provider --> Hook --> Adapter --> Evt
 ```
 
-Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic event enum and Correlation Key. One transaction per POST (array max 100). Insert append-only. Duplicate unique key → no second row. Long `provider_event_id` hashed to 64 hex chars. Do not mutate worker `Notification.status`. Staff list/stats `EXISTS` events. Bounce/open buckets use first event in range per Notification.
+Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic event enum and Correlation Key. Brevo `ts_epoch` is milliseconds (≥ 1e12); seconds still parse. One transaction per POST (array max 100). Insert append-only. Duplicate unique key → no second row. Long `provider_event_id` hashed to 64 hex chars. Do not mutate worker `Notification.status`. Staff item GET returns events latest first. Staff list with `appointmentId` includes the same timeline. Staff list/stats `EXISTS` events. Stats `occurred_at` range heals epoch ≥ 1e12 as millis. Bounce/open buckets use first event in range per Notification.
 
 ## 7. Cancellation, reschedule, no-show
 

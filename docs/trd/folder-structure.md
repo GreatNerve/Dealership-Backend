@@ -41,7 +41,7 @@ Documented now. Created when implementing. Do not invent a second layout.
     reminder/
     notification/                    # Notification + outbox + delivery events (JPA / SKIP LOCKED claim)
       FileNotificationLog.java       # notify:false → logs/notifications.log
-      ReminderMail.java              # HTML + text from snapshot (SYSTEM)
+      ReminderMail.java              # HTML + text from snapshot (SYSTEM visit card; Manual wraps body)
       smtp/                          # NotificationSender, stub, SMTP, MailWorker
       webhook/                       # DeliveryWebhookAdapter, Brevo + stub adapters
   src/main/resources/

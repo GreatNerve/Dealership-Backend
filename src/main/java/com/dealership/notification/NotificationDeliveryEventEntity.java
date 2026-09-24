@@ -113,4 +113,8 @@ public class NotificationDeliveryEventEntity {
   public void setRawType(String rawType) {
     this.rawType = rawType;
   }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
 }

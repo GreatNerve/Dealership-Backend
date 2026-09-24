@@ -5,6 +5,10 @@ import com.dealership.shared.time.BookingTimes;
 public record ReminderMail(String subject, String text, String html) {
 
   public static ReminderMail of(MailSnapshot snapshot) {
+    return snapshot.manual() ? staff(snapshot) : system(snapshot);
+  }
+
+  private static ReminderMail system(MailSnapshot snapshot) {
     String shop = snapshot.dealershipName() == null ? "the dealership" : snapshot.dealershipName();
     String hello = greeting(snapshot);
     String localDate =
@@ -34,27 +38,9 @@ public record ReminderMail(String subject, String text, String html) {
           </tr>
 """
                 .formatted(esc(hello));
-    String html =
-        """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>%s</title>
-</head>
-<body style="margin:0;padding:0;background:#efe8dc;font-family:Georgia,'Times New Roman',serif;color:#1c1917;">
-  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#efe8dc;padding:32px 12px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%%;background:#fffaf3;border:1px solid #d9cbb8;">
-          <tr>
-            <td style="background:#1c1917;padding:28px 32px;">
-              <p style="margin:0;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#c4b5a0;">Service appointment</p>
-              <h1 style="margin:10px 0 0;font-size:26px;font-weight:normal;color:#fffaf3;">%s</h1>
-            </td>
-          </tr>
-          %s
+    String inner =
+        greetingHtml
+            + """
           <tr>
             <td style="padding:28px 32px 12px;font-size:16px;line-height:1.55;color:#44403c;">
               Vehicle: <strong style="color:#1c1917;">%s</strong>
@@ -70,6 +56,55 @@ public record ReminderMail(String subject, String text, String html) {
               Please arrive a few minutes early.
             </td>
           </tr>
+"""
+                .formatted(esc(vehicle), esc(localClock), esc(localDate));
+    return new ReminderMail(subject, text, wrap(subject, "Service appointment", shop, inner));
+  }
+
+  private static ReminderMail staff(MailSnapshot snapshot) {
+    String shop = snapshot.dealershipName() == null ? "the dealership" : snapshot.dealershipName();
+    String subject =
+        snapshot.subject() == null || snapshot.subject().isBlank() ? shop : snapshot.subject();
+    String text = snapshot.body() == null ? "" : snapshot.body();
+    return new ReminderMail(subject, text, wrap(subject, shop, subject, staffRows(text)));
+  }
+
+  private static String staffRows(String text) {
+    if (text == null || text.isBlank()) {
+      return "";
+    }
+    String html = esc(text).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>\n");
+    return """
+          <tr>
+            <td style="padding:28px 32px;font-size:16px;line-height:1.55;color:#44403c;">
+              %s
+            </td>
+          </tr>
+"""
+        .formatted(html);
+  }
+
+  private static String wrap(String pageTitle, String eyebrow, String heading, String innerRows) {
+    return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>%s</title>
+</head>
+<body style="margin:0;padding:0;background:#efe8dc;font-family:Georgia,'Times New Roman',serif;color:#1c1917;">
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#efe8dc;padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%%;background:#fffaf3;border:1px solid #d9cbb8;">
+          <tr>
+            <td style="background:#1c1917;padding:28px 32px;">
+              <p style="margin:0;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#c4b5a0;">%s</p>
+              <h1 style="margin:10px 0 0;font-size:26px;font-weight:normal;color:#fffaf3;">%s</h1>
+            </td>
+          </tr>
+          %s
         </table>
       </td>
     </tr>
@@ -77,14 +112,7 @@ public record ReminderMail(String subject, String text, String html) {
 </body>
 </html>
 """
-            .formatted(
-                esc(subject),
-                esc(shop),
-                greetingHtml,
-                esc(vehicle),
-                esc(localClock),
-                esc(localDate));
-    return new ReminderMail(subject, text, html);
+        .formatted(esc(pageTitle), esc(eyebrow), esc(heading), innerRows);
   }
 
   static String greeting(MailSnapshot snapshot) {
