@@ -1,9 +1,9 @@
 INSERT INTO users (id, email, password_hash, role, created_at, updated_at) VALUES
-  ('00000000-0000-4000-8000-000000000002', 'staff@demo.local',
-   '$2b$10$fIqnKa8LTm.xI5aVw1Du8uUhlMmrPlae6PgTHC9eoP4iF9/sMOYSq',
+  ('00000000-0000-4000-8000-000000000002', 'staff@greatnerve.com',
+   '$2b$10$WjdtgMqEGZqT/eSiEDc4ou9JLyVl2zQXN9PCwwcKDtx0kGes1T/76',
    'DEALERSHIP_STAFF', now(), now()),
-  ('00000000-0000-4000-8000-000000000003', 'customer@demo.local',
-   '$2b$10$fIqnKa8LTm.xI5aVw1Du8uUhlMmrPlae6PgTHC9eoP4iF9/sMOYSq',
+  ('00000000-0000-4000-8000-000000000003', 'customer@greatnerve.com',
+   '$2b$10$WjdtgMqEGZqT/eSiEDc4ou9JLyVl2zQXN9PCwwcKDtx0kGes1T/76',
    'CUSTOMER', now(), now());
 
 INSERT INTO dealerships (id, name, timezone, address, created_at, updated_at) VALUES
@@ -18,7 +18,7 @@ INSERT INTO dealership_staff (id, user_id, dealership_id, created_at, updated_at
 INSERT INTO customers (id, user_id, contact, created_at, updated_at) VALUES
   ('00000000-0000-4000-8000-000000000004',
    '00000000-0000-4000-8000-000000000003',
-   'customer@demo.local', now(), now());
+   'customer@greatnerve.com', now(), now());
 
 INSERT INTO vehicles (id, customer_id, registration_number, make, model, year, created_at, updated_at) VALUES
   ('00000000-0000-4000-8000-000000000006',

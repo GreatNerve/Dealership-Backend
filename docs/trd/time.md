@@ -32,7 +32,7 @@ JSON must be valid: no trailing comma (`{ "scheduledAt": "..." }` not `{ "schedu
 
 Create/reschedule does **not** send mail. It inserts one Reminder row per configured offset (`APP_REMINDER_OFFSETS`, default `24h,2h`). That row’s `scheduled_at` is the **send due Instant** (`visit scheduled_at − offset`). A Notification is created only when that Instant is due and the worker claims it. `notify: false` still claims: append `logs/notifications.log` (no contact) and store `SENT`. `notify: true` uses Notification Mode.
 
-Staff `GET /appointments/{id}/reminders` is the table for one Appointment (`offsetMinutes`, `dueAt`, Reminder status, nested Notification).
+Staff `GET /appointments/{id}/reminders` is the table for one Appointment (**all Schedule Versions**: `scheduleVersion`, `offsetMinutes`, `dueAt`, Reminder status, nested Notification).
 
 Example visit `2026-09-21T04:40:00+05:30` (`notify: true`):
 
@@ -41,7 +41,7 @@ Example visit `2026-09-21T04:40:00+05:30` (`notify: true`):
 | 24h | 1440 | `2026-09-19T23:10:00Z` | `2026-09-20T04:40:00+05:30` | already past → Reminder `EXPIRED`, no mail |
 | 2h | 120 | `2026-09-20T21:10:00Z` | `2026-09-21T02:40:00+05:30` | still ahead → Reminder `PENDING`; Notification around `02:40` |
 
-If the visit is **less than 2 hours** away, **both** default offsets are already past due; 2h is also past its midpoint (T−1h) if remaining is under 1h → both `EXPIRED` → no Notification. Book **more than 2 hours** out for a 2h row that can still become due; the 2h mail only sends in **T−2h → T−1h**. Book **more than 24 hours** out for the 24h mail, which only sends in **T−24h → T−13h**. Book at **T−3h**: 24h past midpoint (`EXPIRED`, no mail), 2h `PENDING` (one mail at T−2h, window until T−1h). Two Reminder **rows**, one send.
+If the visit is **less than 1 hour** away, both default offsets are past midpoint → both `EXPIRED` → no Notification. Book **before T−1h** for a 2h row that can still send (**T−2h → T−1h**). Book **before T−13h** for a first 24h mail (**T−24h → T−13h**), even if due is already past (T−20h still sends). Book at **T−3h**: 24h past midpoint (`EXPIRED`), 2h `PENDING`. After a 24h was already SENT, a reschedule inside 24h inserts 24h `EXPIRED` again.
 
 Send window (SQL; **if the worker goes down and then recovers**): adjacent gap ÷ 2. `nextDueAt` = next Reminder `dueAt` or visit `scheduled_at`. Send while `dueAt <= now() < dueAt + (nextDueAt - dueAt) / 2`. Default:
 
@@ -83,22 +83,16 @@ Vehicle: make, model, year, **Vehicle Number**. If `users.name` is set, first li
 
 No-show grace is config `app.reminders.no-show-grace` (default `1h`), bound as `interval`. Config offsets (`APP_REMINDER_OFFSETS`, default `24h,2h`) are stored as `offset_minutes`. Postgres does the arithmetic so EC2 and the JVM clock cannot drift from the ledger.
 
-Insert Reminder due times (same transaction as create/reschedule): due Instant = visit − offset. If `now() >= due` at insert → `EXPIRED` (no catch-up mail when the visit is closer than that offset). Midpoint expire remains for worker-down recovery after due.
+Insert Reminder due times (same transaction as create/reschedule): due Instant = visit − offset. Status uses the **same midpoint** as claim (`due + (nextDue − due)/2`, `nextDue` from `:nextOffsetMinutes` or visit). Already SENT this offset (System Notification) and `now() >= due` → `EXPIRED` (do not send 24h again after a move inside 24h). Else past midpoint → `EXPIRED`. Else `PENDING` (first book in-window still sends).
 
 ```sql
-INSERT INTO reminders (id, appointment_id, offset_minutes, schedule_version, scheduled_at, status, ...)
-SELECT gen_random_uuid(),
-       a.id,
-       :offsetMinutes,
-       :scheduleVersion,
-       a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
-       CASE
-         WHEN now() >= (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
-           THEN 'EXPIRED'  -- due already past: no catch-up mail
-         ELSE 'PENDING'
-       END,
-FROM appointments a
-WHERE a.id = :appointmentId;
+-- w.due / w.next_due from LATERAL (visit − offset, next offset or visit)
+CASE
+  WHEN EXISTS (SENT SYSTEM notification for this appointment + offset)
+       AND now() >= w.due THEN 'EXPIRED'  -- already mailed this offset; new due past
+  WHEN now() >= w.due + (w.next_due - w.due) / 2 THEN 'EXPIRED'
+  ELSE 'PENDING'
+END
 ```
 
 Due claim already uses `scheduled_at <= now()`. Send window and no-show:
@@ -122,14 +116,14 @@ The application layer does not load every due row, compute times, and write back
 | Work | How |
 | --- | --- |
 | Reminder due times | `INSERT … SELECT` + `interval`, same transaction as create/reschedule |
-| Skip already-past windows | `CASE … EXPIRED` in that INSERT, not a Java loop |
+| Skip closed / already-SENT windows | `CASE … EXPIRED` in that INSERT (midpoint + SENT EXISTS), not a Java loop |
 | Close send window | `UPDATE reminders SET status = 'EXPIRED' WHERE …` (bounded, indexed) |
 | No-show | one `UPDATE appointments … WHERE CONFIRMED AND now() >= scheduled_at + interval '1 hour'` |
 | Claim | `SKIP LOCKED` **Claim Batch** (`APP_WORKERS_CLAIM_BATCH=0` auto from CPUs). Floor 18 = 500k/day drain per 500ms poll; max 50 so no `findAll`. Send-window + Confirmed in `WHERE`. Why: [../decision/scale.md](../decision/scale.md) |
 | Mail | After claim, one JOIN returning a **lean projection**. Copy that into outbox `payload` jsonb (replicate what the mail needs). Consumer must not `findById` the full Appointment/Customer/Vehicle/Dealership graph |
-| Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at`. List FKs: `appointments.customer_id`, `appointments.dealership_id`, `vehicles.customer_id`, `notifications.appointment_id` / `reminder_id` |
+| Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at`. List FKs: `appointments.customer_id`, `appointments.dealership_id`, `appointments (dealership_id, scheduled_at)`, `vehicles.customer_id`, `notifications.appointment_id` / `reminder_id` / `(dealership_id, created_at)`, `notification_delivery_events (notification_id)` |
 
-Outbox snapshot fields: appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, customer name (optional), vehicle make/model/year, **Vehicle Number** (mail only, never logged), contact (for SMTP, never logged).
+Outbox snapshot fields: appointment id, notification id, generation, offset minutes (system), schedule version (system), `scheduled_at`, `display_offset`, dealership name, customer name (optional), vehicle make/model/year, **Vehicle Number** (mail only, never logged), contact (for SMTP, never logged). **Manual** snapshot also carries stored `subject`/`body`.
 
 `display_offset` is never in a `WHERE`.
 

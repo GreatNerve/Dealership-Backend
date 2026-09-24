@@ -1,6 +1,7 @@
 package com.dealership.appointment;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 public final class AppointmentPolicies {
 
@@ -12,7 +13,8 @@ public final class AppointmentPolicies {
 
   /** Reschedule must change the Instant — same wall time is a no-op bump of schedule_version. */
   public static boolean scheduledAtUnchanged(Instant current, Instant next) {
-    return current.equals(next);
+    // timestamptz is microseconds; Instant.equals would miss a no-op after round-trip.
+    return current.truncatedTo(ChronoUnit.MICROS).equals(next.truncatedTo(ChronoUnit.MICROS));
   }
 
   public static boolean vehicleAlreadyHasConfirmed(boolean confirmedExists) {

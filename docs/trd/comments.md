@@ -6,11 +6,17 @@ When we write Java (only after the user asks), comments stay **rare**.
 
 Useful:
 
-- Why SKIP LOCKED + lease (two workers, crash recovery). A live `mail-*` owner blocks a second SMTP send; poller/replay locks are handed off.
+- Why SKIP LOCKED + lease (two workers, crash recovery). A live `mail-*` owner blocks a second SMTP send; poller/replay locks are handed off. **Manual** lease lives on `notifications`; **System** lease lives on `reminders`.
 - Why dead-letter replay sets Reminder `PROCESSING` with a live lease (MailWorker will not send a `DEAD_LETTER` row).
 - Why the Claim Batch floor is 18 (`500_000/28_800×2×0.5s` = 10× assignment 50k on an 8-hour day; auto from CPUs). Cap 50 so a poll never loads the full due set. Not “poll 10×”. Full why: [../decision/scale.md](../decision/scale.md).
 - Why SMTP timeout is shorter than the lease (slow mail must not double-send).
 - Why Notification/outbox is not created at Appointment create.
+- Why Manual Notification has `reminder_id` null (it is not “is it time?”).
+- Why Delivery Events are append-only (opened/bounce must not overwrite worker SENT/DEAD_LETTER).
+- Why bounce/open stats buckets use `min(occurred_at)` in range (so daily bars sum to the distinct headline).
+- Why a webhook JSON array is capped at 100 (one transaction; a valid secret must not hold the pool).
+- Why a long `provider_event_id` is SHA-256 hex (`Inputs.fit`) instead of a 255-char prefix (unique index; prefixes collide).
+- Why SMTP Correlation Key is the Notification UUID in a provider-mapped header (schema must not store `X-Mailin-custom`).
 - Why a unique index is the proof, not an `if`.
 - Why contact / **Vehicle Number** must not appear in logs.
 - Why Booking Offset is stored on the Appointment (EC2 us-east must not format India mail in Eastern).

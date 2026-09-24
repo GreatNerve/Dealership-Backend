@@ -41,7 +41,7 @@ curl -sS "$BASE/actuator/health"
 ```bash
 LOGIN=$(curl -sS -X POST "$BASE/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"customer@demo.local","password":"password"}')
+  -d '{"email":"customer@greatnerve.com","password":"password1"}')
 echo "$LOGIN"
 TOKEN=$(python -c "import json,sys; print(json.loads(sys.argv[1])['data']['access_token'])" "$LOGIN")
 ```

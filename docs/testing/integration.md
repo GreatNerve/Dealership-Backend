@@ -34,15 +34,15 @@ These tests prove the **database is the ledger**.
 ## Clock SQL (set-based)
 
 - Create: 24h Reminder `scheduled_at` equals `appointment.scheduled_at - interval '24 hours'` (and 2h likewise). Assert in SQL/Testcontainers, not Java minus.
-- Appointment 10 hours out → 24h row `EXPIRED` (past midpoint T−13h), 2h `PENDING`, without a Java loop. Appointment 20 hours out → 24h still sendable (before T−13h).
+- Appointment 10 hours out → 24h row `EXPIRED` (past midpoint T−13h), 2h `PENDING`, without a Java loop. Appointment 20 hours out, never SENT → 24h `PENDING` (before T−13h). After a 24h System Notification is SENT, reschedule to 20h out → new 24h `EXPIRED`.
 - No-show: one UPDATE, Confirmed with `scheduled_at` two hours ago → `NO_SHOW_EXPIRED`; Vehicle can take a new Confirmed. Suite must not `findAll` Confirmed into the app to decide.
 - Outbox payload after claim contains the lean snapshot (`scheduled_at`, `display_offset`, dealership name, optional customer name, vehicle make/model/year, Vehicle Number); worker test must not require loading Vehicle/Dealership entities to format mail.
 
 ## Leases (DB only)
 
 - Claim sets `PROCESSING` + `lease_expires_at` for up to **Claim Batch** rows (auto from CPUs, floor 18) in one SQL.
-- Expired lease is claimable again (Reminders and outbox `PROCESSING`).
-- `markSent` on an expired lease is a no-op.
+- Expired lease is claimable again (Reminders, outbox `PROCESSING`, and Manual Notifications).
+- `markSent` on an expired lease is a no-op (Reminder lease for System; Notification lease for Manual).
 - Two sequential claims of the same PENDING row: only one winner per claim SQL (concurrency layer does two threads).
 - One poll with both offsets due claims **both** (batch, not `LIMIT 1`).
 
@@ -52,9 +52,13 @@ These tests prove the **database is the ledger**.
 
 ## Staff Reminder / Notification read
 
-- After create, Staff `GET /appointments/{id}/reminders` returns one item per offset; `offsetMinutes` and `dueAt` match `reminders.offset_minutes` / `reminders.scheduled_at` (UTC Instant, no `dueAtLocal`); each `notification.status` is `NOT_SCHEDULED` and `id` is null while not due. Never omit `notification`.
+- Staff `GET /appointments/{id}/reminders` after reschedule returns **both** Schedule Versions (cancelled unsent + new PENDING/EXPIRED).
+- After create, Staff `GET /appointments/{id}/reminders` returns one item per offset; `scheduleVersion` is 1; `offsetMinutes` and `dueAt` match `reminders.offset_minutes` / `reminders.scheduled_at` (UTC Instant, no `dueAtLocal`); each `notification.status` is `NOT_SCHEDULED` and `id` is null while not due. Never omit `notification`.
 - After a successful send, nested Notification is `SENT` with `sentAt`.
 - After a permanent failure, nested Notification is `DEAD_LETTER` with `lastError`; replay uses that id. Replay from another shop’s Staff is 404. Replay of `PENDING` / `RETRY_SCHEDULED` is `409 REPLAY_NOT_DEAD_LETTER`. Successful replay: Reminder `PROCESSING` with a live lease, Notification `PENDING`, stub/SMTP called **once** with the same idempotency key, then both `SENT`.
+- Manual Notification unique key `appointmentId:MANUAL:notificationId`. Two Manual POSTs with **different** HTTP Idempotency-Keys → two rows. Same Idempotency-Key + same subject/body/Appointment → one row. CHECK: SYSTEM cannot store null `reminder_id`; MANUAL cannot store a Reminder id.
+- `notification_delivery_events` unique `(notification_id, provider, provider_event_id)`: second insert of the same triple is a no-op/conflict, still one row. Webhook does not update `notifications.status`. Unknown Correlation Key → 204. JSON array payloads insert one event per mapped element in **one** transaction (max 100). `provider_event_id` over 255 still inserts (SHA-256 hex). Bounce/open `buckets[]` sum to the distinct totals (first event in range per Notification).
+- `notifications.dealership_id` matches the Appointment’s dealership on System insert and Manual insert. Staff list SQL is `dealership_id = home`. Instant `from`/`to` on list GETs is SQL `WHERE`, not Java filter after load.
 
 ## Identity login
 
@@ -64,7 +68,7 @@ These tests prove the **database is the ledger**.
 ## List enrichment (no N+1)
 
 - Hibernate statistics on: Customer `GET /appointments` with several Confirmed rows stays a bounded statement count (page + count + `IN` loads for Customer / Vehicle / Dealership / User name), not one query per nested row.
-- Staff `GET /customers` is page + count + one vehicles-by-customer-id `IN` + one users `IN` for names, independent of how many Customers are on the page.
+- Staff `GET /notifications` is page + count + event-flag `IN` + one `findAllById` per Appointment / Customer / Vehicle / Dealership / User name. Nested Appointment is on the JSON (customer, Vehicle Number, visit time), not UUID-only.
 
 ## Input validation / sanitize
 

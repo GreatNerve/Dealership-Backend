@@ -115,8 +115,12 @@ public class IdempotencyService {
   }
 
   public AppointmentDtos.AppointmentResponse replayBody(IdempotencyKeyEntity row) {
+    return replay(row, AppointmentDtos.AppointmentResponse.class);
+  }
+
+  public <T> T replay(IdempotencyKeyEntity row, Class<T> type) {
     try {
-      return mapper.readValue(row.getResponse(), AppointmentDtos.AppointmentResponse.class);
+      return mapper.readValue(row.getResponse(), type);
     } catch (JsonProcessingException ex) {
       throw new IllegalStateException(ex);
     }

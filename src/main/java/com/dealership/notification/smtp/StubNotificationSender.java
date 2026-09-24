@@ -5,6 +5,8 @@ import com.dealership.notification.Recorded;
 import com.dealership.shared.time.BookingTimes;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,14 +22,15 @@ public class StubNotificationSender implements NotificationSender {
   private final List<RecordedSend> sent = new CopyOnWriteArrayList<>();
 
   @Override
-  public void send(MailSnapshot snapshot) {
+  public void send(MailSnapshot snapshot, UUID correlationId, Map<String, String> headers) {
     String wall = BookingTimes.formatMail(snapshot.scheduledAt(), snapshot.displayOffset());
     Recorded.add(
         sent,
         new RecordedSend(
-            snapshot.offsetMinutes(),
+            snapshot.offsetMinutes() == null ? 0 : snapshot.offsetMinutes(),
             snapshot.appointmentId(),
             snapshot.idempotencyKey(),
+            snapshot.notificationId(),
             Instant.now(),
             wall,
             false));
@@ -50,6 +53,7 @@ public class StubNotificationSender implements NotificationSender {
       int offsetMinutes,
       java.util.UUID appointmentId,
       String idempotencyKey,
+      java.util.UUID notificationId,
       Instant timestamp,
       String wallTime,
       boolean threw) {}

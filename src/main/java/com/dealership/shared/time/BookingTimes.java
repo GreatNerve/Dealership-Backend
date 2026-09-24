@@ -10,6 +10,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 
 public final class BookingTimes {
@@ -29,7 +30,9 @@ public final class BookingTimes {
     }
     try {
       OffsetDateTime odt = OffsetDateTime.parse(raw);
-      return new BookingInstant(odt.toInstant(), odt.getOffset());
+      // timestamptz is microseconds; keep parse and store on the same Instant.
+      Instant utc = odt.toInstant().truncatedTo(ChronoUnit.MICROS);
+      return new BookingInstant(utc, odt.getOffset());
     } catch (DateTimeParseException ex) {
       throw ApiException.of(
           ApiErrorCode.INVALID_SCHEDULED_AT, "scheduledAt must be ISO-8601 with a UTC offset");

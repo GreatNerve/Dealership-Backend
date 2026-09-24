@@ -21,6 +21,7 @@ class AppPropertiesWorkersTest {
     AppProperties properties = new AppProperties();
     properties.setEnvironment(new MockEnvironment());
     properties.getJwt().setSecret("unit-test-secret-must-be-32-bytes!!");
+    properties.getNotifications().setWebhookSecret("unit-test-webhook-secret");
     properties.getWorkers().setClaimBatch(51);
     assertThrows(IllegalStateException.class, properties::validate);
     properties.getWorkers().setClaimBatch(0);

@@ -59,6 +59,7 @@ public final class AppointmentDtos {
       @JsonProperty("notify") boolean notifyEnabled) {}
 
   public record ReminderItem(
+      int scheduleVersion,
       int offsetMinutes,
       Instant dueAt,
       ReminderStatus reminderStatus,
@@ -75,4 +76,14 @@ public final class AppointmentDtos {
       return new NotificationView(null, NotificationStatus.NOT_SCHEDULED, 0, null, null, null);
     }
   }
+
+  public record Stats(
+      long confirmed,
+      long cancelled,
+      long completed,
+      long noShow,
+      java.util.List<DailyStats> buckets) {}
+
+  public record DailyStats(
+      java.time.LocalDate date, long confirmed, long cancelled, long completed, long noShow) {}
 }

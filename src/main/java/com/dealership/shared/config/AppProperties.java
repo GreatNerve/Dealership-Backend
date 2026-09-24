@@ -98,6 +98,11 @@ public class AppProperties {
       throw new IllegalStateException(
           "APP_JWT_SECRET must be set and must not be the committed default");
     }
+    if (rejectsCommittedJwtSecret(environment)
+        && (notifications.getWebhookSecret() == null
+            || notifications.getWebhookSecret().isBlank())) {
+      throw new IllegalStateException("APP_DELIVERY_WEBHOOK_SECRET must be set");
+    }
     int batch = workers.getClaimBatch();
     if (batch < 1 || batch > 50) {
       throw new IllegalStateException("APP_WORKERS_CLAIM_BATCH must be between 1 and 50");
@@ -198,6 +203,8 @@ public class AppProperties {
     private String mode = "stub";
     private String from = "dheeraj@greatnerve.com";
     private String logDir = "logs";
+    private String webhookSecret = "";
+    private String correlationHeader = "X-Mailin-custom";
 
     public String getMode() {
       return mode;
@@ -221,6 +228,22 @@ public class AppProperties {
 
     public void setLogDir(String logDir) {
       this.logDir = logDir;
+    }
+
+    public String getWebhookSecret() {
+      return webhookSecret;
+    }
+
+    public void setWebhookSecret(String webhookSecret) {
+      this.webhookSecret = webhookSecret == null ? "" : webhookSecret;
+    }
+
+    public String getCorrelationHeader() {
+      return correlationHeader;
+    }
+
+    public void setCorrelationHeader(String correlationHeader) {
+      this.correlationHeader = correlationHeader == null ? "" : correlationHeader;
     }
   }
 

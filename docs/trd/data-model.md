@@ -2,6 +2,8 @@
 
 All tables: `id uuid PK`, `created_at`, `updated_at` timestamptz.
 
+Demo schema may be **wiped and recreated** for this Notification shape (no dual-write of old `notifications` rows).
+
 | Table | Notes |
 | --- | --- |
 | `users` | email unique **lowercase**, optional `name`, BCrypt hash, `user_role` |
@@ -9,10 +11,11 @@ All tables: `id uuid PK`, `created_at`, `updated_at` timestamptz.
 | `dealership_staff` | `user_id` unique, `dealership_id` |
 | `customers` | `user_id` unique, contact |
 | `vehicles` | `customer_id`, `registration_number` unique **uppercase** (**Vehicle Number**), make, model, year |
-| `appointments` | customer, vehicle, dealership, `scheduled_at` (UTC), `display_offset` (from `scheduledAt`, e.g. `+05:30`), `appointment_status`, `created_by_*` (`user_role`), `notify` (false → `logs/notifications.log`, true → stub/SMTP), `one_confirmed` (from `APP_ONE_CONFIRMED_PER_VEHICLE`), optimistic `version` |
+| `appointments` | customer, vehicle, dealership, `scheduled_at` (UTC), `display_offset` (from `scheduledAt`, e.g. `+05:30`), `appointment_status`, `created_by_*` (`user_role`), `notify` (false → `logs/notifications.log` on **System** due path, true → stub/SMTP), `one_confirmed` (from `APP_ONE_CONFIRMED_PER_VEHICLE`), optimistic `version` |
 | `idempotency_keys` | `user_id`, key unique together, fingerprint, resource_id, `idempotency_status`, response, expires_at (retain from config, default **24h**). Expired rows deleted at UTC midnight. |
 | `reminders` | appointment, `offset_minutes`, schedule_version (`MAX+1` on insert after cancelUnsent), scheduled_at, `reminder_status`, attempts, next_attempt_at, last_error, locked_by, lease_expires_at |
-| `notifications` | reminder_id, appointment_id, `offset_minutes`, idempotency_key unique, `notification_status`, attempts, next_attempt_at, last_error, sent_at |
+| `notifications` | `dealership_id` **required**, `appointment_id` **required**, `reminder_id` nullable (**null** when `generation=MANUAL`), `offset_minutes` nullable (null when MANUAL), `channel` (`notification_channel`), `generation` (`notification_generation`), idempotency_key unique, `notification_status`, attempts, next_attempt_at, last_error, sent_at, **Manual lease** `locked_by` / `lease_expires_at` (System lease stays on the Reminder), `subject`/`body` nullable (**required when MANUAL**, null when SYSTEM). Correlation for providers = `id` (no extra column). |
+| `notification_delivery_events` | `notification_id`, `event_type` (`delivery_event_type`), `provider` (`delivery_provider`), `provider_event_id`, `occurred_at`, optional `raw_type` (unmapped debug). Append-only. No snapshot columns on `notifications`. |
 | `outbox_events` | `outbox_event_type`, aggregate_id, payload jsonb, `outbox_status`, attempts, lease, published_at |
 
 ## Schema types
@@ -26,14 +29,20 @@ Closed sets are **PostgreSQL ENUM** types (and matching Java enums). Not `varcha
 | `idempotency_status` | `STARTED`, `COMPLETED` |
 | `reminder_status` | `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `SENT`, `DEAD_LETTER`, `CANCELLED`, `EXPIRED` |
 | `notification_status` | `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `SENT`, `DEAD_LETTER`, `CANCELLED` |
-| Java `NotificationStatus` | Same as PG, plus **`NOT_SCHEDULED`** for Staff GET when no `notifications` row exists. Never stored. |
-| `outbox_event_type` | `REMINDER_DUE` |
+| Java `NotificationStatus` | Same as PG, plus **`NOT_SCHEDULED`** for Staff Reminder GET when no `notifications` row exists. Never stored. |
+| `notification_channel` | `EMAIL` |
+| `notification_generation` | `SYSTEM`, `MANUAL` |
+| `delivery_event_type` | `ACCEPTED`, `DELIVERED`, `SOFT_BOUNCE`, `HARD_BOUNCE`, `OPENED`, `CLICKED`, `SPAM`, `BLOCKED`, `ERROR`, `OTHER` |
+| `delivery_provider` | `BREVO`, `STUB` |
+| `outbox_event_type` | `REMINDER_DUE`, `MANUAL_NOTIFICATION` |
 | `outbox_status` | `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `PUBLISHED` |
 
 - `UNIQUE (vehicle_id) WHERE status = 'CONFIRMED' AND one_confirmed` on appointments (`APP_ONE_CONFIRMED_PER_VEHICLE`)
 - `UNIQUE (appointment_id, offset_minutes, schedule_version)` on reminders
 - `UNIQUE (idempotency_key)` on notifications
 - `UNIQUE (user_id, key)` on `idempotency_keys`
+- `UNIQUE (notification_id, provider, provider_event_id)` on `notification_delivery_events` (webhook idempotency)
+- CHECK: `SYSTEM` ⇒ `reminder_id` and `offset_minutes` NOT NULL, `subject`/`body` NULL. `MANUAL` ⇒ `reminder_id` and `offset_minutes` NULL, `subject`/`body` NOT NULL.
 
 Partial indexes (due-work burst):
 
@@ -43,6 +52,8 @@ Partial indexes (due-work burst):
 List/FK indexes (page GETs; Postgres does not index FKs by itself):
 
 - `appointments (customer_id)`, `appointments (dealership_id)`
+- `appointments (dealership_id, scheduled_at)` (Staff Instant `from`/`to`)
 - `vehicles (customer_id)`
-- `notifications (appointment_id)`, `notifications (reminder_id)`
-
+- `notifications (appointment_id)`, `notifications (reminder_id)`, `notifications (dealership_id, created_at)`
+- `notifications (next_attempt_at)` WHERE `generation = 'MANUAL' AND status IN ('RETRY_SCHEDULED','PROCESSING')`
+- `notification_delivery_events (notification_id)`, `notification_delivery_events (event_type, occurred_at)`

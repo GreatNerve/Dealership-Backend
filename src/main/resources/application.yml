@@ -122,6 +122,8 @@ app:
     mode: ${APP_NOTIFICATIONS_MODE:stub}
     from: ${APP_MAIL_FROM:dheeraj@greatnerve.com}
     log-dir: ${APP_NOTIFICATIONS_LOG_DIR:logs}
+    webhook-secret: ${APP_DELIVERY_WEBHOOK_SECRET:}
+    correlation-header: ${APP_NOTIFICATIONS_CORRELATION_HEADER:X-Mailin-custom}
   workers:
     concurrency: ${APP_WORKERS_CONCURRENCY:2}
     lease: ${APP_WORKERS_LEASE:30s}

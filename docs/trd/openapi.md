@@ -52,6 +52,8 @@ Documented **2xx** JSON in Swagger matches that envelope (`success`, `data`, `er
 
 `dev` profile: UI open. After Authorize, Try-it-out sends `Authorization: Bearer <jwt>`.
 
+Webhook `POST /webhooks/delivery/{provider}` is documented with **no User JWT**. Try-it-out uses header `Authorization: Bearer {APP_DELIVERY_WEBHOOK_SECRET}`. Not the OAuth2 password flow.
+
 ## Demo
 
 The assignment video may use Swagger instead of curl for `POST /appointments`.

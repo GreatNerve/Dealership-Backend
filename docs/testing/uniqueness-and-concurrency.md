@@ -5,9 +5,10 @@ The brief: a Customer must never receive the same Reminder twice, and it must be
 Proof is not a comment. Proof is:
 
 1. Unique `(appointment_id, offset_minutes, schedule_version)`.
-2. Unique notification idempotency key.
-3. **Two workers, one send** for that Reminder Offset (`concurrentClaimsSendOnce`).
-4. Crash after provider accept / before durable `SENT` → retry **same key**, still **one** Notification row (`crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`).
+2. Unique notification idempotency key (System and Manual shapes).
+3. Unique `(notification_id, provider, provider_event_id)` on Delivery Events.
+4. **Two workers, one send** for that Reminder Offset (`concurrentClaimsSendOnce`).
+5. Crash after provider accept / before durable `SENT` → retry **same key**, still **one** Notification row (`crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`).
 
 ## Concurrent workers
 
@@ -19,6 +20,7 @@ Proof is not a comment. Proof is:
 ## Concurrent creates
 
 - Two `POST /appointments` with the **same** Idempotency-Key **and User** → one Appointment, one winner 201, the other 201 replay or 409 in-flight — never two Appointments.
+- Two `POST /appointments/{id}/notifications` with the **same** Idempotency-Key **and User** → one Manual Notification.
 - Two `POST /appointments` for the **same Vehicle**, different keys, cap on (`APP_ONE_CONFIRMED_PER_VEHICLE=true`) → one 201, one 409. One Confirmed row.
 - Cap off (`false`) → both 201. Two Confirmed rows. Index still exists; those rows have `one_confirmed=false`.
 
@@ -30,4 +32,4 @@ Proof is not a comment. Proof is:
 
 ## What “same Reminder twice” means
 
-Same Appointment + same Reminder Offset minutes + same schedule version. A reschedule is a **new** schedule version and may notify again. That is not a duplicate; that is a new visit time.
+Same Appointment + same Reminder Offset minutes + same schedule version. A reschedule is a **new** schedule version and may notify again. That is not a duplicate; that is a new visit time. A **Manual** send is a new Notification id (new key). Two webhook deliveries with the same `provider_event_id` are one event.

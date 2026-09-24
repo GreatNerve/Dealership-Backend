@@ -1,8 +1,12 @@
 package com.dealership.appointment;
 
 import com.dealership.identity.Role;
+import com.dealership.notification.NotificationDtos;
+import com.dealership.notification.NotificationService;
+import com.dealership.shared.api.InstantRange;
 import com.dealership.shared.api.PageQueries;
 import com.dealership.shared.api.PageResponse;
+import com.dealership.shared.api.StatsBucket;
 import com.dealership.shared.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -11,6 +15,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -30,10 +35,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AppointmentController {
 
   private final AppointmentService appointments;
+  private final NotificationService notifications;
   private final PageQueries pages;
 
-  public AppointmentController(AppointmentService appointments, PageQueries pages) {
+  public AppointmentController(
+      AppointmentService appointments, NotificationService notifications, PageQueries pages) {
     this.appointments = appointments;
+    this.notifications = notifications;
     this.pages = pages;
   }
 
@@ -70,6 +78,15 @@ public class AppointmentController {
             body.vehicleId(), body.dealershipId(), body.scheduledAt(), body.notifyEnabled()));
   }
 
+  @GetMapping("/stats")
+  @Operation(summary = "Appointment counts by status for Instant from/to (Staff)")
+  public AppointmentDtos.Stats stats(
+      @RequestParam Instant from,
+      @RequestParam Instant to,
+      @RequestParam(required = false) StatsBucket bucket) {
+    return appointments.stats(InstantRange.required(from, to), bucket);
+  }
+
   @GetMapping("/{id}")
   @Operation(summary = "Get an Appointment")
   public AppointmentDtos.AppointmentResponse get(@PathVariable UUID id) {
@@ -88,8 +105,10 @@ public class AppointmentController {
       @RequestParam(required = false) Integer page,
       @RequestParam(required = false) Integer size,
       @RequestParam(required = false) String q,
-      @RequestParam(required = false) AppointmentStatus status) {
-    return appointments.list(pages.bind(page, size, q), status);
+      @RequestParam(required = false) AppointmentStatus status,
+      @RequestParam(required = false) Instant from,
+      @RequestParam(required = false) Instant to) {
+    return appointments.list(pages.bind(page, size, q), status, InstantRange.of(from, to));
   }
 
   @PostMapping("/{id}/cancel")
@@ -109,5 +128,15 @@ public class AppointmentController {
   public AppointmentDtos.AppointmentResponse reschedule(
       @PathVariable UUID id, @Valid @RequestBody AppointmentDtos.RescheduleRequest body) {
     return appointments.reschedule(id, body);
+  }
+
+  @PostMapping("/{id}/notifications")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  @Operation(summary = "Send a Manual Notification for an Appointment (Staff)")
+  public NotificationDtos.NotificationResponse sendManual(
+      @PathVariable UUID id,
+      @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @Valid @RequestBody NotificationDtos.ManualSendRequest body) {
+    return notifications.enqueueManual(id, idempotencyKey, body.subject(), body.body());
   }
 }

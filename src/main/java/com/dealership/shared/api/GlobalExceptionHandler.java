@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -79,6 +81,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(AccessDeniedException.class)
   public ResponseEntity<ApiResponse<Void>> handleDenied(AccessDeniedException ex) {
     return fail(ApiErrorCode.FORBIDDEN, "Access denied");
+  }
+
+  @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+  public ResponseEntity<ApiResponse<Void>> handleMissing(Exception ex) {
+    return fail(ApiErrorCode.NOT_FOUND, "Not found");
   }
 
   @ExceptionHandler(OptimisticLockingFailureException.class)

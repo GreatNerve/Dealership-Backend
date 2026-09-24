@@ -94,7 +94,7 @@ login_demo() {
   local body shops
   body="$(api POST /api/v1/auth/login \
     -H 'Content-Type: application/json' \
-    -d '{"email":"customer@demo.local","password":"password"}')"
+    -d '{"email":"customer@greatnerve.com","password":"password1"}')"
   TOKEN="$(json_get "$body" data.access_token)"
   shops="$(api GET '/api/v1/dealerships?size=1' -H "Authorization: Bearer $TOKEN")"
   DEALERSHIP_ID="$(json_get "$shops" data.items.0.id)"
@@ -184,7 +184,7 @@ api GET /actuator/health
 echo
 
 if login_demo 2>/dev/null; then
-  echo "logged in as customer@demo.local"
+  echo "logged in as customer@greatnerve.com"
 else
   echo "demo login skipped; registering a new Customer"
   provision_fresh

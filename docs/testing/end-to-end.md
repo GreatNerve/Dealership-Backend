@@ -41,7 +41,7 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 ## Cancel / reschedule / complete
 
 - Customer or home-shop Staff cancel before send → stub never called for those Reminders. Other customer / other shop → 404.
-- Customer or home-shop Staff reschedule → old Reminders not sent; new rows from config offsets. Same Instant → `400 SCHEDULED_AT_UNCHANGED`. Past target or past current visit → `400 SCHEDULED_AT_PAST`. New visit within 24h → 24h inserts `EXPIRED` (no catch-up); more than 24h out → 24h may send when due.
+- Customer or home-shop Staff reschedule → old unsent Reminders not sent; new rows from config offsets. Same Instant → `400 SCHEDULED_AT_UNCHANGED`. Past target or past current visit → `400 SCHEDULED_AT_PAST`. New visit within 24h → 24h inserts `EXPIRED` (no catch-up); more than 24h out → 24h may send when due. Staff `GET /appointments/{id}/reminders` still lists the **cancelled** prior version plus the new version. Shop `GET /notifications` does not invent rows for cancelled never-sent offsets; already SENT rows remain.
 - Staff `POST /appointments/{id}/complete` at home Dealership → `COMPLETED`, unsent Reminders cancelled, Vehicle free. Customer complete → 403.
 
 ## Mock Appointment
@@ -52,7 +52,22 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 
 - Force dead-letter (stub throws permanent).
 - Staff `GET /appointments/{id}/reminders` → Notification `DEAD_LETTER` + `lastError`; take `notification.id`.
-- `POST /notifications/{id}/replay` → stub called with the **same** idempotency key. Not a new key.
+- `POST /notifications/{id}/replay` → stub called with the **same** idempotency key. Not a new key. SMTP Correlation Key is that Notification id.
+
+## Manual send
+
+- Staff `POST /appointments/{id}/notifications` `{ subject, body }` + `Idempotency-Key` at home Dealership → 202, `generation=MANUAL`, `reminder_id` null, `dealership_id` set, subject/body stored. Stub/SMTP invoked once through the outbox (not inside the HTTP request). Same key + body → same Notification id. Other shop → 404. Customer → 403. Blank subject / missing key → 400. Cancelled / completed / no-show still enqueue.
+- `GET /notifications/{id}` returns subject/body and empty `events` until a webhook.
+
+## Delivery webhook
+
+- `POST /webhooks/delivery/stub` with Bearer secret and Correlation Key = Notification id → one `OPENED` (or mapped type) row. Repeat same `provider_event_id` → still one row. Worker status stays `SENT`. Missing/invalid secret → 401. Unknown Notification id → 204. Unmapped event → 204, no row. Array larger than 100 → 400. Long `provider_event_id` still one row.
+
+## Filters and stats
+
+- `GET /appointments?from=&to=&status=` filters `scheduled_at` (Instant). Frontend “today” is those params, not a server `date=`.
+- `GET /notifications?from=&to=&generation=MANUAL&hasEvent=OPENED` is home Dealership only.
+- `GET /notifications/stats?from=&to=` returns appointment / sent / opened / bounce / failed counts. `GET /appointments/stats` returns confirmed / cancelled / completed / no-show. Optional `bucket=DAY|WEEK|MONTH` adds zero-filled `buckets[]` (max 400 slices). `GET /dashboard/stats` returns both. Customer → 403. Other shop’s Staff sees zeros for this shop’s data (or 404 if no home membership).
 
 ## Failures the e2e suite must cover
 
@@ -76,7 +91,7 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 
 - Omit `size` → default **100** (`APP_PAGE_DEFAULT_SIZE`).
 - `GET /appointments?page=0&size=20` still returns `{ items, page, size, totalElements, totalPages }` (client asked for 20).
-- Same for `/vehicles`, `/customers`, `/customers/{id}/vehicles`, and `/dealerships`.
+- Same for `/vehicles`, `/customers`, `/customers/{id}/vehicles`, `/dealerships`, and `/notifications`.
 - `q=honda` filters items; totals are the filtered count. No match: 200, empty items.
 - Empty shop: 200, `items: []`, `totalElements: 0`.
 - `size=1001` → 400. `q` longer than 100 chars → 400.
@@ -88,11 +103,11 @@ Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLoc
 ## Reads
 
 - Customer cannot GET another Customer’s Appointment (404).
-- Staff cannot GET another Dealership’s Appointment (404).
+- Staff cannot GET another Dealership’s Appointment (404) or that shop’s Notifications (empty/404).
 - Staff `GET /customers?q=` returns `customerId` plus nested Vehicles (`vehicleId`) for booking. Staff `POST /customers` then `POST /customers/{id}/vehicles` then `POST /appointments`. Customer callers get 403 on the directory.
 
 ## Out of e2e v1
 
-- Live Brevo.
-- Browser/UI (there is none).
+- Live Brevo (SMTP or webhook). Stub sender + stub webhook adapter are in-suite.
+- Browser/UI (frontend contracts in the PRD; implement later).
 - EC2.

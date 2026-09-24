@@ -8,6 +8,7 @@ import com.dealership.dealership.DealershipEntity;
 import com.dealership.dealership.DealershipRepository;
 import com.dealership.dealership.DealershipStaffEntity;
 import com.dealership.dealership.DealershipStaffRepository;
+import com.dealership.dealership.HomeDealerships;
 import com.dealership.identity.Role;
 import com.dealership.identity.UserEntity;
 import com.dealership.identity.UserRepository;
@@ -18,10 +19,13 @@ import com.dealership.reminder.ReminderService;
 import com.dealership.shared.access.ResourceAccess;
 import com.dealership.shared.api.ApiErrorCode;
 import com.dealership.shared.api.ApiException;
+import com.dealership.shared.api.InstantRange;
 import com.dealership.shared.api.PageQueries;
 import com.dealership.shared.api.PageQuery;
 import com.dealership.shared.api.PageResponse;
+import com.dealership.shared.api.StatsBucket;
 import com.dealership.shared.config.AppProperties;
+import com.dealership.shared.db.SqlValues;
 import com.dealership.shared.metrics.AppMetrics;
 import com.dealership.shared.security.AuthPrincipal;
 import com.dealership.shared.security.CurrentUser;
@@ -32,7 +36,10 @@ import com.dealership.vehicle.VehicleDtos;
 import com.dealership.vehicle.VehicleEntity;
 import com.dealership.vehicle.VehicleRepository;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +65,7 @@ public class AppointmentService {
   private final UserRepository users;
   private final DealershipRepository dealerships;
   private final DealershipStaffRepository staff;
+  private final HomeDealerships homeDealerships;
   private final ReminderService reminders;
   private final NotificationRepository notifications;
   private final IdempotencyService idempotency;
@@ -73,6 +81,7 @@ public class AppointmentService {
       UserRepository users,
       DealershipRepository dealerships,
       DealershipStaffRepository staff,
+      HomeDealerships homeDealerships,
       ReminderService reminders,
       NotificationRepository notifications,
       IdempotencyService idempotency,
@@ -86,6 +95,7 @@ public class AppointmentService {
     this.users = users;
     this.dealerships = dealerships;
     this.staff = staff;
+    this.homeDealerships = homeDealerships;
     this.reminders = reminders;
     this.notifications = notifications;
     this.idempotency = idempotency;
@@ -249,19 +259,21 @@ public class AppointmentService {
       throw ApiException.forbidden("Only staff can read Reminders");
     }
     loadVisible(id, user);
-    List<ReminderRepository.ReminderRow> rows = reminders.currentVersion(id);
+    List<ReminderRepository.ReminderRow> rows = reminders.history(id);
     Map<UUID, NotificationEntity> notes =
         rows.isEmpty()
             ? Map.of()
             : notifications
                 .findByReminderIdIn(rows.stream().map(ReminderRepository.ReminderRow::id).toList())
                 .stream()
+                .filter(note -> note.getReminderId() != null)
                 .collect(Collectors.toMap(NotificationEntity::getReminderId, Function.identity()));
     List<AppointmentDtos.ReminderItem> items = new ArrayList<>();
     for (ReminderRepository.ReminderRow row : rows) {
       NotificationEntity note = notes.get(row.id());
       items.add(
           new AppointmentDtos.ReminderItem(
+              row.scheduleVersion(),
               row.offsetMinutes(),
               row.dueAt(),
               row.status(),
@@ -280,9 +292,15 @@ public class AppointmentService {
 
   @Transactional(readOnly = true)
   public PageResponse<AppointmentDtos.AppointmentResponse> list(
-      PageQuery query, AppointmentStatus status) {
+      PageQuery query, AppointmentStatus status, InstantRange range) {
     AuthPrincipal user = CurrentUser.require();
     var pageable = pages.pageable(query);
+    Instant from = range == null ? null : range.from();
+    Instant to = range == null ? null : range.to();
+    boolean hasFrom = from != null;
+    boolean hasTo = to != null;
+    Instant fromTs = hasFrom ? from : Instant.EPOCH;
+    Instant toTs = hasTo ? to : Instant.EPOCH;
     if (user.role() == Role.CUSTOMER) {
       CustomerEntity customer =
           customers.findByUserId(user.userId()).orElseThrow(ApiException::notFound);
@@ -294,6 +312,10 @@ public class AppointmentService {
               // PG cannot infer a null appointment_status bind; ignored when hasStatus is
               // false.
               status != null ? status : AppointmentStatus.CONFIRMED,
+              hasFrom,
+              fromTs,
+              hasTo,
+              toTs,
               pageable),
           user.role(),
           customer,
@@ -309,10 +331,85 @@ public class AppointmentService {
             query.like(),
             status != null,
             status != null ? status : AppointmentStatus.CONFIRMED,
+            hasFrom,
+            fromTs,
+            hasTo,
+            toTs,
             pageable),
         user.role(),
         null,
         shop);
+  }
+
+  @Transactional(readOnly = true)
+  public AppointmentDtos.Stats stats(InstantRange range, StatsBucket bucket) {
+    return stats(homeShop(), range, bucket);
+  }
+
+  @Transactional(readOnly = true)
+  public AppointmentDtos.Stats stats(
+      DealershipEntity shop, InstantRange range, StatsBucket bucket) {
+    UUID shopId = shop.getId();
+    ZoneId zone = ZoneId.of(shop.getTimezone());
+    if (bucket != null) {
+      bucket.requireFit(range.from(), range.to(), zone);
+      Map<LocalDate, long[]> byPeriod = new HashMap<>();
+      for (Object[] row :
+          appointments.countByStatusBucket(shopId, bucket.unit(), range.from(), range.to())) {
+        LocalDate day = SqlValues.localDate(row[0]);
+        long[] acc = byPeriod.computeIfAbsent(day, ignored -> new long[4]);
+        long n = ((Number) row[2]).longValue();
+        switch (String.valueOf(row[1])) {
+          case "CONFIRMED" -> acc[0] += n;
+          case "CANCELLED" -> acc[1] += n;
+          case "COMPLETED" -> acc[2] += n;
+          case "NO_SHOW_EXPIRED" -> acc[3] += n;
+          default -> {}
+        }
+      }
+      Map<LocalDate, AppointmentDtos.DailyStats> found = new HashMap<>();
+      for (var e : byPeriod.entrySet()) {
+        long[] v = e.getValue();
+        found.put(e.getKey(), new AppointmentDtos.DailyStats(e.getKey(), v[0], v[1], v[2], v[3]));
+      }
+      List<AppointmentDtos.DailyStats> buckets =
+          bucket.fill(
+              range.from(),
+              range.to(),
+              zone,
+              found,
+              day -> new AppointmentDtos.DailyStats(day, 0, 0, 0, 0));
+      long confirmed = 0;
+      long cancelled = 0;
+      long completed = 0;
+      long noShow = 0;
+      for (AppointmentDtos.DailyStats row : buckets) {
+        confirmed += row.confirmed();
+        cancelled += row.cancelled();
+        completed += row.completed();
+        noShow += row.noShow();
+      }
+      return new AppointmentDtos.Stats(confirmed, cancelled, completed, noShow, buckets);
+    }
+    long confirmed = 0;
+    long cancelled = 0;
+    long completed = 0;
+    long noShow = 0;
+    for (Object[] row : appointments.countByStatus(shopId, range.from(), range.to())) {
+      long n = ((Number) row[1]).longValue();
+      switch (String.valueOf(row[0])) {
+        case "CONFIRMED" -> confirmed = n;
+        case "CANCELLED" -> cancelled = n;
+        case "COMPLETED" -> completed = n;
+        case "NO_SHOW_EXPIRED" -> noShow = n;
+        default -> {}
+      }
+    }
+    return new AppointmentDtos.Stats(confirmed, cancelled, completed, noShow, List.of());
+  }
+
+  private DealershipEntity homeShop() {
+    return homeDealerships.requireStaffShop();
   }
 
   private record VisibleRow(
@@ -324,6 +421,14 @@ public class AppointmentService {
       throw ApiException.forbidden("Only staff can complete an Appointment");
     }
     return user;
+  }
+
+  private UUID homeShopId() {
+    AuthPrincipal user = CurrentUser.require();
+    if (user.role() != Role.DEALERSHIP_STAFF) {
+      throw ApiException.forbidden("Only staff can read Appointment stats");
+    }
+    return staff.findByUserId(user.userId()).orElseThrow(ApiException::notFound).getDealershipId();
   }
 
   private VisibleRow loadVisible(UUID id, AuthPrincipal user) {
@@ -345,19 +450,32 @@ public class AppointmentService {
     return new VisibleRow(appointment, null, shop);
   }
 
+  @Transactional(readOnly = true)
+  public Map<UUID, AppointmentDtos.AppointmentResponse> mapByIds(
+      Collection<UUID> ids, Role viewer) {
+    if (ids == null || ids.isEmpty()) {
+      return Map.of();
+    }
+    return responsesFor(appointments.findAllById(ids), viewer, null, null);
+  }
+
   private PageResponse<AppointmentDtos.AppointmentResponse> mapPage(
       Page<AppointmentEntity> page,
       Role viewer,
       CustomerEntity knownCustomer,
       DealershipEntity knownShop) {
-    List<AppointmentEntity> rows = page.getContent();
+    Map<UUID, AppointmentDtos.AppointmentResponse> byId =
+        responsesFor(page.getContent(), viewer, knownCustomer, knownShop);
+    return PageResponse.of(page.map(a -> require(byId.get(a.getId()))));
+  }
+
+  private Map<UUID, AppointmentDtos.AppointmentResponse> responsesFor(
+      List<AppointmentEntity> rows,
+      Role viewer,
+      CustomerEntity knownCustomer,
+      DealershipEntity knownShop) {
     if (rows.isEmpty()) {
-      return new PageResponse<>(
-          List.of(),
-          page.getNumber(),
-          page.getSize(),
-          page.getTotalElements(),
-          page.getTotalPages());
+      return Map.of();
     }
     // one findAllById per table so a page of 100 is a few IN queries, not 301
     Map<UUID, CustomerEntity> byCustomer =
@@ -380,16 +498,20 @@ public class AppointmentService {
                     rows.stream().map(AppointmentEntity::getDealershipId).distinct().toList()),
                 DealershipEntity::getId);
     Map<UUID, String> names = namesByUserId(byCustomer.values());
-    return PageResponse.of(
-        page.map(
-            a ->
-                toResponse(
-                    a,
-                    require(byCustomer.get(a.getCustomerId())),
-                    require(byVehicle.get(a.getVehicleId())),
-                    require(byShop.get(a.getDealershipId())),
-                    viewer,
-                    names.get(require(byCustomer.get(a.getCustomerId())).getUserId()))));
+    Map<UUID, AppointmentDtos.AppointmentResponse> out = new HashMap<>();
+    for (AppointmentEntity appointment : rows) {
+      CustomerEntity customer = byCustomer.get(appointment.getCustomerId());
+      VehicleEntity vehicle = byVehicle.get(appointment.getVehicleId());
+      DealershipEntity shop = byShop.get(appointment.getDealershipId());
+      if (customer == null || vehicle == null || shop == null) {
+        continue;
+      }
+      out.put(
+          appointment.getId(),
+          toResponse(
+              appointment, customer, vehicle, shop, viewer, names.get(customer.getUserId())));
+    }
+    return out;
   }
 
   private static <T> Map<UUID, T> byId(List<T> rows, Function<T, UUID> id) {

@@ -39,10 +39,11 @@ Documented now. Created when implementing. Do not invent a second layout.
     vehicle/
     appointment/
     reminder/
-    notification/                    # Notification + outbox (JPA / SKIP LOCKED claim)
+    notification/                    # Notification + outbox + delivery events (JPA / SKIP LOCKED claim)
       FileNotificationLog.java       # notify:false → logs/notifications.log
-      ReminderMail.java              # HTML + text from snapshot
+      ReminderMail.java              # HTML + text from snapshot (SYSTEM)
       smtp/                          # NotificationSender, stub, SMTP, MailWorker
+      webhook/                       # DeliveryWebhookAdapter, Brevo + stub adapters
   src/main/resources/
     application.yml
     db/migration/

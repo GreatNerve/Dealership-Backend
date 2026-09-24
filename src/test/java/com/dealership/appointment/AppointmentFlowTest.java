@@ -3,6 +3,7 @@ package com.dealership.appointment;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,7 @@ import com.dealership.AbstractIT;
 import com.dealership.identity.AuthDtos;
 import com.dealership.identity.Role;
 import com.dealership.notification.FileNotificationLog;
+import com.dealership.notification.NotificationService;
 import com.dealership.notification.OutboxPublisher;
 import com.dealership.notification.smtp.StubNotificationSender;
 import com.dealership.reminder.ReminderRepository;
@@ -17,6 +19,7 @@ import com.dealership.reminder.ReminderScheduler;
 import jakarta.persistence.EntityManagerFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -46,6 +49,8 @@ class AppointmentFlowTest extends AbstractIT {
   @Autowired ReminderRepository reminderRows;
 
   @Autowired OutboxPublisher publisher;
+
+  @Autowired NotificationService notifications;
 
   @Autowired FileNotificationLog notifyOffLog;
 
@@ -201,6 +206,7 @@ class AppointmentFlowTest extends AbstractIT {
     assertEquals(2, listed.getBody().size());
     assertTrue(listed.getBody().toString().contains("NOT_SCHEDULED"));
     assertTrue(listed.getBody().toString().contains("offsetMinutes"));
+    assertTrue(listed.getBody().toString().contains("scheduleVersion"));
   }
 
   @Test
@@ -322,14 +328,18 @@ class AppointmentFlowTest extends AbstractIT {
     jdbc.update(
         """
         INSERT INTO notifications (
-          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
-          attempts, created_at, updated_at)
-        VALUES (?, ?, ?, 1440, ?, CAST('DEAD_LETTER' AS notification_status), 0, now(), now())
+          id, reminder_id, appointment_id, dealership_id, offset_minutes,
+          channel, generation, idempotency_key, status, attempts, created_at, updated_at)
+        SELECT ?, ?, a.id, a.dealership_id, 1440,
+          'EMAIL'::notification_channel, 'SYSTEM'::notification_generation,
+          ?, CAST('DEAD_LETTER' AS notification_status), 0, now(), now()
+        FROM appointments a
+        WHERE a.id = ?
         """,
         notificationId,
         reminderId,
-        appointmentId,
-        "replay-" + notificationId);
+        "replay-" + notificationId,
+        appointmentId);
     ResponseEntity<String> replay =
         http.exchange(
             "/api/v1/notifications/" + notificationId + "/replay",
@@ -372,14 +382,18 @@ class AppointmentFlowTest extends AbstractIT {
     jdbc.update(
         """
         INSERT INTO notifications (
-          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
-          attempts, created_at, updated_at)
-        VALUES (?, ?, ?, 1440, ?, CAST('PENDING' AS notification_status), 0, now(), now())
+          id, reminder_id, appointment_id, dealership_id, offset_minutes,
+          channel, generation, idempotency_key, status, attempts, created_at, updated_at)
+        SELECT ?, ?, a.id, a.dealership_id, 1440,
+          'EMAIL'::notification_channel, 'SYSTEM'::notification_generation,
+          ?, CAST('PENDING' AS notification_status), 0, now(), now()
+        FROM appointments a
+        WHERE a.id = ?
         """,
         notificationId,
         reminderId,
-        appointmentId,
-        "pending-" + notificationId);
+        "pending-" + notificationId,
+        appointmentId);
     ResponseEntity<String> replay =
         http.exchange(
             "/api/v1/notifications/" + notificationId + "/replay",
@@ -432,15 +446,19 @@ class AppointmentFlowTest extends AbstractIT {
     jdbc.update(
         """
         INSERT INTO notifications (
-          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
+          id, reminder_id, appointment_id, dealership_id, offset_minutes,
+          channel, generation, idempotency_key, status,
           attempts, last_error, created_at, updated_at)
-        VALUES (?, ?, ?, 1440, ?, CAST('DEAD_LETTER' AS notification_status), 5, 'smtp failed',
-          now(), now())
+        SELECT ?, ?, a.id, a.dealership_id, 1440,
+          'EMAIL'::notification_channel, 'SYSTEM'::notification_generation,
+          ?, CAST('DEAD_LETTER' AS notification_status), 5, 'smtp failed', now(), now()
+        FROM appointments a
+        WHERE a.id = ?
         """,
         notificationId,
         reminderId,
-        appointmentId,
-        key);
+        key,
+        appointmentId);
     ResponseEntity<String> replay =
         http.exchange(
             "/api/v1/notifications/" + notificationId + "/replay",
@@ -639,7 +657,7 @@ class AppointmentFlowTest extends AbstractIT {
   }
 
   @Test
-  void twentyHoursOutExpiresTwentyFourHourBecauseDueAlreadyPast() {
+  void twentyHoursOutKeepsTwentyFourHourPendingBeforeMidpoint() {
     String staffToken =
         registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
     UUID dealershipId = createDealership(staffToken);
@@ -664,9 +682,9 @@ class AppointmentFlowTest extends AbstractIT {
                 AppointmentDtos.AppointmentResponse.class)
             .getBody()
             .id();
-    // Visit in 20h → 24h due is already past → EXPIRED (no catch-up). 2h still PENDING.
+    // Visit in 20h → 24h due is past, still before midpoint T−13h, never SENT → PENDING.
     assertEquals(
-        "EXPIRED",
+        "PENDING",
         jdbc.queryForObject(
             "SELECT status FROM reminders WHERE appointment_id = ? AND offset_minutes = 1440",
             String.class,
@@ -708,7 +726,8 @@ class AppointmentFlowTest extends AbstractIT {
         http.exchange(
             "/api/v1/appointments/" + created.id() + "/reschedule",
             HttpMethod.POST,
-            new HttpEntity<>("{\"scheduledAt\":\"" + when + "\"}", bearer(customerToken)),
+            new HttpEntity<>(
+                "{\"scheduledAt\":\"" + created.scheduledAtLocal() + "\"}", bearer(customerToken)),
             String.class);
     assertEquals(HttpStatus.BAD_REQUEST, same.getStatusCode());
     assertTrue(same.getBody().contains("SCHEDULED_AT_UNCHANGED"));
@@ -742,6 +761,97 @@ class AppointmentFlowTest extends AbstractIT {
             """,
             String.class,
             created.id()));
+
+    ResponseEntity<List> history =
+        http.exchange(
+            "/api/v1/appointments/" + created.id() + "/reminders",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            List.class);
+    assertEquals(HttpStatus.OK, history.getStatusCode());
+    assertEquals(4, history.getBody().size());
+    assertTrue(history.getBody().toString().contains("scheduleVersion"));
+  }
+
+  @Test
+  void rescheduleInsideTwentyFourHoursSkipsAfterSent() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusHours(30)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID id =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":false}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+    UUID reminderId =
+        jdbc.queryForObject(
+            """
+            SELECT id FROM reminders
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            UUID.class,
+            id);
+    jdbc.update(
+        """
+        INSERT INTO notifications (
+          id, reminder_id, appointment_id, dealership_id, offset_minutes,
+          channel, generation, idempotency_key, status, attempts, sent_at,
+          created_at, updated_at)
+        SELECT ?, ?, a.id, a.dealership_id, 1440,
+          'EMAIL'::notification_channel, 'SYSTEM'::notification_generation,
+          ?, CAST('SENT' AS notification_status), 1, now(), now(), now()
+        FROM appointments a
+        WHERE a.id = ?
+        """,
+        UUID.randomUUID(),
+        reminderId,
+        id + ":1440:1",
+        id);
+    OffsetDateTime closer =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusHours(20)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    ResponseEntity<AppointmentDtos.AppointmentResponse> moved =
+        http.exchange(
+            "/api/v1/appointments/" + id + "/reschedule",
+            HttpMethod.POST,
+            new HttpEntity<>("{\"scheduledAt\":\"" + closer + "\"}", bearer(customerToken)),
+            AppointmentDtos.AppointmentResponse.class);
+    assertEquals(HttpStatus.OK, moved.getStatusCode());
+    assertEquals(
+        "EXPIRED",
+        jdbc.queryForObject(
+            """
+            SELECT status FROM reminders
+            WHERE appointment_id = ? AND schedule_version = 2 AND offset_minutes = 1440
+            """,
+            String.class,
+            id));
+    assertEquals(
+        "PENDING",
+        jdbc.queryForObject(
+            """
+            SELECT status FROM reminders
+            WHERE appointment_id = ? AND schedule_version = 2 AND offset_minutes = 120
+            """,
+            String.class,
+            id));
   }
 
   @Test
@@ -1274,6 +1384,371 @@ class AppointmentFlowTest extends AbstractIT {
             new HttpEntity<>(bearer(login.accessToken())),
             AppointmentDtos.AppointmentResponse.class);
     assertEquals(HttpStatus.OK, own.getStatusCode());
+  }
+
+  @Test
+  void staffNotificationListManualAndWebhook() throws Exception {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    String plate = randomPlate("KA");
+    UUID vehicleId = createVehicle(customerToken, plate);
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    headers),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+
+    HttpHeaders sendHeaders = bearer(staffToken);
+    sendHeaders.add("Idempotency-Key", "manual-" + UUID.randomUUID());
+    ResponseEntity<Map> sent =
+        http.exchange(
+            "/api/v1/appointments/" + appointmentId + "/notifications",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"subject":"Visit us again","body":"Thanks for coming in."}
+                """,
+                sendHeaders),
+            Map.class);
+    assertEquals(HttpStatus.ACCEPTED, sent.getStatusCode());
+    UUID notificationId = UUID.fromString(sent.getBody().get("id").toString());
+    assertEquals("MANUAL", sent.getBody().get("generation").toString());
+
+    publisher.drain();
+    long deadline = System.currentTimeMillis() + 5000;
+    while (System.currentTimeMillis() < deadline
+        && stub.recorded().stream().noneMatch(s -> appointmentId.equals(s.appointmentId()))) {
+      publisher.drain();
+      Thread.sleep(50);
+    }
+    assertTrue(stub.recorded().stream().anyMatch(s -> appointmentId.equals(s.appointmentId())));
+
+    HttpHeaders hook = new HttpHeaders();
+    hook.set(HttpHeaders.AUTHORIZATION, "Bearer test-webhook-secret");
+    hook.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+    ResponseEntity<Void> first =
+        http.exchange(
+            "/api/v1/webhooks/delivery/stub",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"event":"OPENED","correlationKey":"%s","providerEventId":"e1"}
+                """
+                    .formatted(notificationId),
+                hook),
+            Void.class);
+    assertEquals(HttpStatus.OK, first.getStatusCode());
+    ResponseEntity<Void> dup =
+        http.exchange(
+            "/api/v1/webhooks/delivery/stub",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"event":"OPENED","correlationKey":"%s","providerEventId":"e1"}
+                """
+                    .formatted(notificationId),
+                hook),
+            Void.class);
+    assertEquals(HttpStatus.OK, dup.getStatusCode());
+    assertEquals(
+        Integer.valueOf(1),
+        jdbc.queryForObject(
+            "SELECT count(*) FROM notification_delivery_events WHERE notification_id = ?",
+            Integer.class,
+            notificationId));
+    String longId = "m".repeat(300);
+    ResponseEntity<Void> longHook =
+        http.exchange(
+            "/api/v1/webhooks/delivery/stub",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"event":"OPENED","correlationKey":"%s","providerEventId":"%s"}
+                """
+                    .formatted(notificationId, longId),
+                hook),
+            Void.class);
+    assertEquals(HttpStatus.OK, longHook.getStatusCode());
+    ResponseEntity<Void> earlierOpen =
+        http.exchange(
+            "/api/v1/webhooks/delivery/stub",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+{"event":"OPENED","correlationKey":"%s","providerEventId":"e-day2","occurredAt":"2026-01-02T00:00:00Z"}
+"""
+                    .formatted(notificationId),
+                hook),
+            Void.class);
+    assertEquals(HttpStatus.OK, earlierOpen.getStatusCode());
+    assertEquals(
+        Integer.valueOf(3),
+        jdbc.queryForObject(
+            "SELECT count(*) FROM notification_delivery_events WHERE notification_id = ?",
+            Integer.class,
+            notificationId));
+    assertEquals(
+        Integer.valueOf(64),
+        jdbc.queryForObject(
+            """
+SELECT length(provider_event_id) FROM notification_delivery_events
+WHERE notification_id = ? AND provider_event_id <> 'e1' AND provider_event_id <> 'e-day2'
+""",
+            Integer.class,
+            notificationId));
+    assertEquals(
+        "SENT",
+        jdbc.queryForObject(
+            "SELECT status FROM notifications WHERE id = ?", String.class, notificationId));
+
+    Instant from = Instant.now().minusSeconds(3600);
+    Instant to = Instant.now().plusSeconds(3600);
+    ResponseEntity<Map> listed =
+        http.exchange(
+            "/api/v1/notifications?generation=MANUAL&hasEvent=OPENED&from=" + from + "&to=" + to,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, listed.getStatusCode());
+    assertTrue(listed.getBody().toString().contains(notificationId.toString()));
+    assertTrue(listed.getBody().toString().contains(plate));
+
+    ResponseEntity<Map> detail =
+        http.exchange(
+            "/api/v1/notifications/" + notificationId,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, detail.getStatusCode());
+    Map appointment = (Map) detail.getBody().get("appointment");
+    assertNotNull(appointment);
+    assertEquals(appointmentId.toString(), appointment.get("id").toString());
+    assertEquals(plate, ((Map) appointment.get("vehicle")).get("registrationNumber"));
+
+    ResponseEntity<Map> stats =
+        http.exchange(
+            "/api/v1/notifications/stats?from=" + from + "&to=" + to,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, stats.getStatusCode());
+    assertTrue(((Number) stats.getBody().get("opened")).intValue() >= 1);
+    assertTrue(stats.getBody().containsKey("failed"));
+    assertTrue(stats.getBody().containsKey("bounced"));
+
+    Instant openedFrom = Instant.parse("2026-01-01T00:00:00Z");
+    Instant openedTo = Instant.now().plusSeconds(3600);
+    ResponseEntity<Map> openedBuckets =
+        http.exchange(
+            "/api/v1/notifications/stats?from=" + openedFrom + "&to=" + openedTo + "&bucket=DAY",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, openedBuckets.getStatusCode());
+    long openedTotal = ((Number) openedBuckets.getBody().get("opened")).longValue();
+    assertEquals(1, openedTotal);
+    long openedSum = 0;
+    for (Object row : (List<?>) openedBuckets.getBody().get("buckets")) {
+      openedSum += ((Number) ((Map<?, ?>) row).get("opened")).longValue();
+    }
+    assertEquals(openedTotal, openedSum);
+
+    Instant visitFrom = when.toInstant().minusSeconds(60);
+    Instant visitTo = when.toInstant().plusSeconds(3600);
+    ResponseEntity<Map> apptStats =
+        http.exchange(
+            "/api/v1/appointments/stats?from=" + visitFrom + "&to=" + visitTo,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, apptStats.getStatusCode());
+    assertTrue(((Number) apptStats.getBody().get("confirmed")).intValue() >= 1);
+
+    ResponseEntity<Map> dash =
+        http.exchange(
+            "/api/v1/dashboard/stats?from=" + from + "&to=" + visitTo + "&bucket=DAY",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            Map.class);
+    assertEquals(HttpStatus.OK, dash.getStatusCode());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> appts = (Map<String, Object>) dash.getBody().get("appointments");
+    assertTrue(((Number) appts.get("confirmed")).intValue() >= 1);
+    assertTrue(appts.get("buckets") instanceof List);
+    assertFalse(((List<?>) appts.get("buckets")).isEmpty());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> mail = (Map<String, Object>) dash.getBody().get("notifications");
+    assertTrue(((Number) mail.get("opened")).intValue() >= 1);
+  }
+
+  @Test
+  void manualSendIdempotencyRetryAndFilters() throws Exception {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    OffsetDateTime when =
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    HttpHeaders createHeaders = bearer(customerToken);
+    createHeaders.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    UUID appointmentId =
+        http.exchange(
+                "/api/v1/appointments",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+                    {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
+                    """
+                        .formatted(vehicleId, dealershipId, when),
+                    createHeaders),
+                AppointmentDtos.AppointmentResponse.class)
+            .getBody()
+            .id();
+
+    ResponseEntity<String> missingKey =
+        http.exchange(
+            "/api/v1/appointments/" + appointmentId + "/notifications",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"subject":"Visit us again","body":"Thanks for coming in."}
+                """,
+                bearer(staffToken)),
+            String.class);
+    assertEquals(HttpStatus.BAD_REQUEST, missingKey.getStatusCode());
+    assertTrue(missingKey.getBody().contains("MISSING_HEADER"));
+
+    HttpHeaders sendHeaders = bearer(staffToken);
+    sendHeaders.add("Idempotency-Key", "manual-" + appointmentId);
+    String mailBody =
+        """
+        {"subject":"Visit us again","body":"Thanks for coming in."}
+        """;
+    ResponseEntity<Map> first =
+        http.exchange(
+            "/api/v1/appointments/" + appointmentId + "/notifications",
+            HttpMethod.POST,
+            new HttpEntity<>(mailBody, sendHeaders),
+            Map.class);
+    assertEquals(HttpStatus.ACCEPTED, first.getStatusCode());
+    UUID notificationId = UUID.fromString(first.getBody().get("id").toString());
+    ResponseEntity<Map> replay =
+        http.exchange(
+            "/api/v1/appointments/" + appointmentId + "/notifications",
+            HttpMethod.POST,
+            new HttpEntity<>(mailBody, sendHeaders),
+            Map.class);
+    assertEquals(HttpStatus.ACCEPTED, replay.getStatusCode());
+    assertEquals(notificationId.toString(), replay.getBody().get("id").toString());
+    assertEquals(
+        Integer.valueOf(1),
+        jdbc.queryForObject(
+            "SELECT count(*) FROM notifications WHERE appointment_id = ? AND generation = 'MANUAL'",
+            Integer.class,
+            appointmentId));
+
+    publisher.drain();
+    long deadline = System.currentTimeMillis() + 5000;
+    while (System.currentTimeMillis() < deadline
+        && stub.recorded().stream().noneMatch(s -> appointmentId.equals(s.appointmentId()))) {
+      publisher.drain();
+      Thread.sleep(50);
+    }
+    assertTrue(stub.recorded().stream().anyMatch(s -> appointmentId.equals(s.appointmentId())));
+
+    jdbc.update(
+        """
+        UPDATE notifications
+        SET status = 'RETRY_SCHEDULED'::notification_status,
+            attempts = 1,
+            next_attempt_at = now() - interval '1 second',
+            sent_at = NULL,
+            locked_by = NULL,
+            lease_expires_at = NULL,
+            updated_at = now()
+        WHERE id = ?
+        """,
+        notificationId);
+    stub.clear();
+    notifications.pollManualRetries("test-manual-poller");
+    deadline = System.currentTimeMillis() + 5000;
+    while (System.currentTimeMillis() < deadline
+        && stub.recorded().stream().noneMatch(s -> appointmentId.equals(s.appointmentId()))) {
+      publisher.drain();
+      Thread.sleep(50);
+    }
+    assertTrue(stub.recorded().stream().anyMatch(s -> appointmentId.equals(s.appointmentId())));
+    assertEquals(
+        Integer.valueOf(1),
+        jdbc.queryForObject(
+            "SELECT attempts FROM notifications WHERE id = ?", Integer.class, notificationId));
+
+    ResponseEntity<String> notScheduled =
+        http.exchange(
+            "/api/v1/notifications?status=NOT_SCHEDULED",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            String.class);
+    assertEquals(HttpStatus.BAD_REQUEST, notScheduled.getStatusCode());
+
+    Instant same = Instant.parse("2026-09-24T00:00:00Z");
+    ResponseEntity<String> emptyWindow =
+        http.exchange(
+            "/api/v1/notifications/stats?from=" + same + "&to=" + same,
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(staffToken)),
+            String.class);
+    assertEquals(HttpStatus.BAD_REQUEST, emptyWindow.getStatusCode());
+
+    HttpHeaders hook = new HttpHeaders();
+    hook.set(HttpHeaders.AUTHORIZATION, "Bearer test-webhook-secret");
+    hook.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+    ResponseEntity<Void> unknown =
+        http.exchange(
+            "/api/v1/webhooks/delivery/stub",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"event":"OPENED","correlationKey":"%s","providerEventId":"missing"}
+                """
+                    .formatted(UUID.randomUUID()),
+                hook),
+            Void.class);
+    assertEquals(HttpStatus.NO_CONTENT, unknown.getStatusCode());
+
+    http.exchange(
+        "/api/v1/appointments/" + appointmentId + "/cancel",
+        HttpMethod.POST,
+        new HttpEntity<>(bearer(staffToken)),
+        String.class);
+    HttpHeaders afterCancel = bearer(staffToken);
+    afterCancel.add("Idempotency-Key", "manual-cancelled-" + appointmentId);
+    ResponseEntity<String> cancelled =
+        http.exchange(
+            "/api/v1/appointments/" + appointmentId + "/notifications",
+            HttpMethod.POST,
+            new HttpEntity<>(mailBody, afterCancel),
+            String.class);
+    assertEquals(HttpStatus.ACCEPTED, cancelled.getStatusCode());
   }
 
   @Test

@@ -57,6 +57,8 @@ class ReminderMailTest {
     return new MailSnapshot(
         UUID.randomUUID(),
         UUID.randomUUID(),
+        UUID.randomUUID(),
+        UUID.randomUUID(),
         offsetMinutes,
         1,
         Instant.parse("2026-09-22T16:30:00Z"),
@@ -70,6 +72,9 @@ class ReminderMailTest {
         "customer@example.com",
         "key",
         true,
-        0);
+        0,
+        NotificationGeneration.SYSTEM,
+        null,
+        null);
   }
 }

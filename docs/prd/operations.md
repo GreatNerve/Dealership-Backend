@@ -9,11 +9,12 @@
 5. As a reviewer, I want structured logs with Appointment/Reminder/Notification ids.
 6. As a developer, I want a deps Compose file under `docker/`, so I can run the app from Maven (`make run` defaults to the `dev` profile).
 7. As a developer, I want the **main** Compose file at the repo root to include deps **and** the app Compose under `docker/`, and an app-only Compose so I can rebuild just the application image (`make app`).
-8. As a caller, I want list GET endpoints paginated (`page`, `size`, default **100**) and searchable (`q`), so that large shops do not dump every row.
+8. As a caller, I want list GET endpoints paginated (`page`, `size`, default **100**) and searchable (`q`), so that large shops do not dump every row. Appointment and Notification lists also take Instant `from`/`to` (frontend Dealership-local day) and status/generation filters.
 9. As a Customer, I want Reminder mail to show the local time I booked (`10:00 PM`), not UTC and not the EC2 clock.
 10. As an operator, I want the public API at `https://dealership.greatnerve.com`.
 11. As an operator, I want `/actuator/prometheus` behind JWT so I can scrape send/create counters without opening metrics to the internet.
 12. As a browser client, I want CORS to allow **any origin** (`APP_CORS_ORIGINS=*`), so a local or hosted UI can call the API without a whitelist.
+13. As a Staff Member, I want a dashboard of Appointment status counts and Notification send/fail/bounce/open (today, year, last 7 days).
 
 ## Video success
 

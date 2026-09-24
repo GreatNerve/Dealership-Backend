@@ -57,7 +57,7 @@ docker compose up -d --build
 - Health: http://localhost:8080/actuator/health
 - Prometheus (JWT): http://localhost:8080/actuator/prometheus
 
-Demo login (`dev` profile): `staff@demo.local` / `password` and `customer@demo.local` / `password`.
+Demo login (`dev` profile): `staff@greatnerve.com` / `password1` and `customer@greatnerve.com` / `password1`.
 
 ## Try an Appointment (24h and 2h Reminders)
 
@@ -106,7 +106,7 @@ flowchart TB
   subgraph worker [Worker 2 to 4]
     direction TB
     W1["1. Renew lease while sending"]
-    W2["2. File log if notify false, else stub or SMTP"]
+    W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
     W3["3. Mark SENT on reminders and notifications"]
     W1 --> W2 --> W3
   end
@@ -147,7 +147,7 @@ Start with the folder READMEs, then open the file for that topic. Terms live in 
 | One Confirmed per Vehicle | [prd/appointment.md](docs/prd/appointment.md) | [trd/data-model.md](docs/trd/data-model.md) | [decision/one-appointment-per-vehicle.md](docs/decision/one-appointment-per-vehicle.md), [adr/0006](docs/adr/0006-one-confirmed-appointment-per-vehicle.md) |
 | Reminder | [prd/reminder.md](docs/prd/reminder.md) | [trd/reminder.md](docs/trd/reminder.md) | [decision/send-window-and-config.md](docs/decision/send-window-and-config.md) |
 | Send window (24h / 2h) | [prd/reminder.md](docs/prd/reminder.md) | [trd/time.md](docs/trd/time.md) | [decision/send-window-and-config.md](docs/decision/send-window-and-config.md) |
-| Notification (`stub` / `smtp`, `notify: false`) | [prd/notification.md](docs/prd/notification.md) | [trd/notification.md](docs/trd/notification.md) | [decision/notification-pipeline.md](docs/decision/notification-pipeline.md) |
+| Notification (`stub` / `smtp`, Manual, Delivery Events) | [prd/notification.md](docs/prd/notification.md) | [trd/notification.md](docs/trd/notification.md) | [decision/notification-pipeline.md](docs/decision/notification-pipeline.md), [adr/0012](docs/adr/0012-smtp-correlation-and-delivery-events.md) |
 | Time, Booking Offset, Dealership Timezone | [prd/appointment.md](docs/prd/appointment.md) | [trd/time.md](docs/trd/time.md) | [decision/utc-instant-and-booking-offset.md](docs/decision/utc-instant-and-booking-offset.md), [adr/0011](docs/adr/0011-utc-instant-booking-offset.md) |
 | Postgres clock and uniqueness | — | [trd/data-model.md](docs/trd/data-model.md) | [decision/postgres-clock-and-ledger.md](docs/decision/postgres-clock-and-ledger.md), [sql-clock](docs/decision/sql-clock-not-app-layer.md) |
 | RabbitMQ outbox | [prd/notification.md](docs/prd/notification.md) | [trd/notification.md](docs/trd/notification.md) | [decision/rabbitmq-outbox-delivery.md](docs/decision/rabbitmq-outbox-delivery.md), [adr/0002](docs/adr/0002-postgres-schedules-rabbit-delivers.md) |

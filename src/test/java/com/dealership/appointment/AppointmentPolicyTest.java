@@ -25,8 +25,11 @@ class AppointmentPolicyTest {
 
   @Test
   void sameInstantIsUnchangedForReschedule() {
-    Instant t = Instant.parse("2026-09-22T16:30:00Z");
+    Instant t = Instant.parse("2026-09-22T16:30:00.000000123Z");
     assertTrue(AppointmentPolicies.scheduledAtUnchanged(t, t));
+    assertTrue(
+        AppointmentPolicies.scheduledAtUnchanged(
+            t.truncatedTo(java.time.temporal.ChronoUnit.MICROS), t));
     assertFalse(AppointmentPolicies.scheduledAtUnchanged(t, t.plusSeconds(60)));
   }
 

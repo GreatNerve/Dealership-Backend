@@ -16,12 +16,15 @@ One of each (names can differ; the *job* must not be duplicated):
 | Error JSON + `correlationId` | one `ApiResponse` envelope (`success`, `data`, `error`, `message`, `correlationId`) |
 | Parse `scheduledAt` → Instant + `display_offset` | one time parse |
 | Mail Local Wall Time from Instant + offset | one formatter (HTTP Customer GET and mail) |
-| Reminder mail subject / text / HTML | one `ReminderMail` from the outbox snapshot |
+| Instant `from`/`to` query bind | one shared binder (Appointments, Notifications, stats) |
+| Stats `DAY`/`WEEK`/`MONTH` slices | one `StatsBucket` (zero-filled `buckets[]` in shop TZ) |
+| Reminder mail subject / text / HTML | one `ReminderMail` from the outbox snapshot (**SYSTEM** only) |
 | Reminder due-time `INSERT … SELECT` | one SQL, used by create **and** reschedule |
 | SKIP LOCKED claim + lease heartbeat | one lease helper; Reminder and outbox pass table/SQL, not two copy-pasted workers |
-| `NotificationSender` | one interface; stub and SMTP implement it; mode flag picks the bean. `notify: false` uses `FileNotificationLog` (`logs/notifications.log`), not this interface |
+| `NotificationSender` | one interface; stub and SMTP implement it; mode flag picks the bean. SMTP sets Correlation Key via a generic headers map. `notify: false` uses `FileNotificationLog` (`logs/notifications.log`) on the System due path, not this interface |
+| `DeliveryWebhookAdapter` | one interface per provider (`brevo`, `stub`); maps payload → generic `DeliveryEventType` + Correlation Key. HTTP controller does not parse Brevo JSON. |
 | Offset list from config | one `@ConfigurationProperties`; bind `List<Duration>` (`APP_REMINDER_OFFSETS`) |
-| Sanitize / normalize strings | `Inputs` (trim + strip controls). JSON deserializer and query/form/header binder both call it. `Inputs.email` lowercases. |
+| Sanitize / normalize strings | `Inputs` (trim + strip controls). JSON deserializer and query/form/header binder both call it. `Inputs.email` lowercases. `Inputs.clip` / `Inputs.fit` (hash when over max) for varchar columns |
 
 Do **not** invent a generic “worker framework” for two queues. Same pattern, not a new abstraction layer.
 
@@ -63,6 +66,7 @@ Yes — **database access belongs in the Repository.** Not in the Controller. No
 | **Scheduler** | `@Scheduled` tick only; calls a service | `ReminderScheduler`, `OutboxPublisher` | SQL, SMTP |
 | **Worker** | Background consume / execute | `MailWorker` | HTTP |
 | **Sender** | External mail provider | `NotificationSender` | Postgres |
+| **Webhook adapter** | Map provider payload → Delivery Event | `DeliveryWebhookAdapter` | SMTP, JWT |
 | **Common** | Shared across modules | `TimeProvider`, `PageQueries` | Feature policies |
 
 Packages stay **by module** (`com.dealership.appointment`, `…notification`), not `controller/` / `service/` subfolders. Nested folder only for a **concern** (mail send lives in `notification.smtp`). File *role* matches the table; folder matches the feature. Reminder has no JPA entity: clock and SKIP LOCKED are set-based SQL ([ADR 0009](../adr/0009-jpa-plus-native-skip-locked.md)). `JdbcTemplate` in `ReminderRepository` is still a Repository.

@@ -10,14 +10,14 @@ One Spring Boot service:
 
 - Customers register Vehicles and book Appointments at a Dealership.
 - Staff Members book Appointments for a Customer at their **home Dealership only**. They search or create that Customer (and Vehicle) to obtain ids. They complete, cancel, and reschedule Confirmed visits at that shop. Customers cancel and reschedule their own visits; they cannot mark a visit Completed.
-- Creating an Appointment transactionally creates Reminder rows for each configured offset (default 24h and 2h) unless that window is already past.
-- A durable scheduler finds due Reminders after downtime. Delivery is stub (default) or Brevo SMTP (flag).
+- Creating an Appointment transactionally creates Reminder rows for each configured offset (default 24h and 2h) unless that send window is already past (or that offset was already SENT and the new due is past).
+- A durable scheduler finds due Reminders after downtime. Delivery is stub (default) or Brevo SMTP (flag). Staff may also enqueue a **Manual** Notification from an Appointment. Provider **Delivery Events** (open, bounce) arrive on a public webhook and stay append-only.
 - A Customer never receives the same Reminder twice, proven by database uniqueness and concurrency tests.
 
 ## Goals
 
 1. Honour the assignment: `POST /appointments`, configured Reminder offsets (default 24h and 2h), stub sender, provable no duplicate Reminder, tests, README/diagram later, demo video.
-2. Make failure modes explicit: retries, leases, dead-letter, replay, no-show expiry.
+2. Make failure modes explicit: retries, leases, dead-letter, replay, no-show expiry, webhook idempotency.
 3. Signal production thinking (JWT, RabbitMQ outbox, Redis rate limits, Swagger, Docker) without microservices.
 4. Stay defendable line-by-line in review.
 

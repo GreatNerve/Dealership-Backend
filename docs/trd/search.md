@@ -20,7 +20,8 @@ Do not use `q` for other shops’ data. Staff search still cannot see another De
 
 | List | Fields |
 | --- | --- |
-| `GET /appointments` | Vehicle Number, make, model; Appointment `status`; Dealership name (Customer list). Optional exact `status` query param as well (`CONFIRMED` \| `CANCELLED` \| `NO_SHOW_EXPIRED`). |
+| `GET /appointments` | Vehicle Number, make, model; Appointment `status`; Dealership name (Customer list). Optional exact `status` query param (`CONFIRMED` \| `CANCELLED` \| `COMPLETED` \| `NO_SHOW_EXPIRED`). Optional Instant `from`/`to` on `scheduled_at` (not part of `q`). |
+| `GET /notifications` | Customer name, Vehicle Number, make, model; `generation`; `channel`; worker `status`. Optional exact filters (`status`, `generation`, `channel`, `appointmentId`, `hasEvent`, Instant `from`/`to`) are query params, not `q`. |
 | `GET /vehicles` | Vehicle Number, make, model (own Vehicles) |
 | `GET /customers` | contact; Vehicle Number, make, model (any Vehicle of that Customer) |
 | `GET /customers/{id}/vehicles` | Vehicle Number, make, model |

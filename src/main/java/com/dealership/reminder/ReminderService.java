@@ -44,8 +44,8 @@ public class ReminderService {
     }
   }
 
-  public List<ReminderRepository.ReminderRow> currentVersion(UUID appointmentId) {
-    return reminders.listCurrentVersion(appointmentId);
+  public List<ReminderRepository.ReminderRow> history(UUID appointmentId) {
+    return reminders.listHistory(appointmentId);
   }
 
   public void cancelUnsent(UUID appointmentId) {

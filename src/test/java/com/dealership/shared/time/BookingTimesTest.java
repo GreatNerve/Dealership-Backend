@@ -14,6 +14,12 @@ import org.junit.jupiter.api.Test;
 class BookingTimesTest {
 
   @Test
+  void parseTruncatesToMicroseconds() {
+    BookingInstant booking = BookingTimes.parseScheduledAt("2026-09-22T22:00:00.123456789+05:30");
+    assertEquals(Instant.parse("2026-09-22T16:30:00.123456Z"), booking.utc());
+  }
+
+  @Test
   void parseKeepsOffsetAndUtcInstant() {
     BookingInstant booking = BookingTimes.parseScheduledAt("2026-09-22T22:00:00+05:30");
     assertEquals(Instant.parse("2026-09-22T16:30:00Z"), booking.utc());

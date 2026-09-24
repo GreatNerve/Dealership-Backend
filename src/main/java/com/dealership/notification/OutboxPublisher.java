@@ -48,7 +48,10 @@ public class OutboxPublisher {
         rabbit.convertAndSend(RabbitConfig.NOTIFICATION_QUEUE, claimed.snapshot());
         notifications.markPublished(claimed.id());
         metrics.outboxPublished();
-        log.info("outbox published reminder_id={}", claimed.snapshot().reminderId());
+        log.info(
+            "outbox published notification_id={} reminder_id={}",
+            claimed.snapshot().notificationId(),
+            claimed.snapshot().reminderId());
       }
     } finally {
       MDC.remove("worker_id");

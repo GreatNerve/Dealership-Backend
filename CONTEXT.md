@@ -85,15 +85,31 @@ How long a due **Reminder** may still send **if the worker goes down and then re
 _Avoid_: buffer hour, grace hour (no-show grace is separate)
 
 **Notification**:
-The delivery attempt record for one **Reminder** (stub log or Brevo SMTP).
-_Avoid_: Message, email (email is a channel), reminder (Reminder is the schedule)
+The delivery record for one send. **System** Notifications belong to one **Reminder**. **Manual** Notifications belong to an **Appointment** only (`reminder_id` null). Always has `dealership_id`. Channel is **EMAIL** in v1.
+_Avoid_: Message, email (email is a Channel), reminder (Reminder is the schedule)
+
+**Channel**:
+How the **Notification** is delivered. v1 is **EMAIL** only. Future SMS or push is another Channel, not a second table.
+_Avoid_: Notification Mode, provider name (Brevo is an adapter)
+
+**Generation**:
+Who created the **Notification**. **SYSTEM** = due **Reminder**. **MANUAL** = Staff compose from an Appointment. Closed enum.
+_Avoid_: type, kind, source (unqualified)
+
+**Delivery Event**:
+Append-only provider signal on a **Notification** (accepted, delivered, opened, bounced, clicked, spam, blocked, error). Generic enum. Derive “opened?” from events — do not copy status onto `notifications`.
+_Avoid_: Brevo event names in the API, snapshot columns (`opened_at`)
+
+**Correlation Key**:
+The **Notification** id. SMTP puts it in a provider-mapped custom header (Brevo: `X-Mailin-custom`). Schema and JSON never use that header name. Future Channels map their own header/tag to the same id.
+_Avoid_: message-id as the ledger key, storing Brevo field names
 
 **Not Scheduled**:
 Staff GET status when that **Reminder** has no **Notification** row yet (not due, or window already skipped). Always return the Notification object; do not omit it or send JSON `null`. Not a stored row. Not a send failure.
 _Avoid_: pending (PENDING is a real Notification row), missing, N/A, null notification
 
 **Notification Mode**:
-Process-wide `stub` or `smtp`. Stub is the assignment default; SMTP is **Brevo** (`SPRING_MAIL_*` in `.env`). Used when Appointment `notify` is true.
+Process-wide `stub` or `smtp`. Stub is the assignment default; SMTP is **Brevo** (`SPRING_MAIL_*` in `.env`). Used when Appointment `notify` is true (system due path) and for **Manual** send.
 _Avoid_: Channel as the flag name
 
 **Mock Appointment**:
@@ -101,8 +117,12 @@ An **Appointment** created with `notify: false`. Due Reminders append `logs/noti
 _Avoid_: Fake appointment, test appointment (tests are separate), junk
 
 **Mail Replay**:
-Re-enqueue of a dead-lettered **Notification** using the same idempotency key.
+Re-enqueue of a dead-lettered **Notification** using the same idempotency key. System replay also reopens the **Reminder** to `PROCESSING`. Manual replay has no Reminder.
 _Avoid_: Resend (implies a new identity), retry (retry is automatic)
+
+**Delivery Webhook**:
+Public HTTP ingest for provider **Delivery Events**. Auth is a shared secret (`APP_DELIVERY_WEBHOOK_SECRET` in `Authorization`: Bearer, Token, or the raw secret), not a User JWT. Adapter maps the payload to the generic enum and finds the **Notification** by **Correlation Key**.
+_Avoid_: Brevo-only URL as the product API, mutating worker status from the webhook
 
 **Booking Offset**:
 The UTC offset on `scheduledAt` when the **Appointment** is created or rescheduled (example `+05:30`). Stored on the **Appointment**. **Notifications** and Customer GET use it for Local Wall Time. Not a register field.
@@ -127,11 +147,11 @@ Integer on **Reminder** rows. Create starts at 1; reschedule inserts `MAX+1` so 
 _Avoid_: Version (unqualified), etag
 
 **Outbox Event**:
-A row written in the same database transaction as **Appointment**/**Reminder** state, later published to RabbitMQ.
+A row written in the same database transaction as **Appointment**/**Reminder**/**Notification** state, later published to RabbitMQ. System due work is `REMINDER_DUE`. Staff compose is `MANUAL_NOTIFICATION`.
 _Avoid_: Message, event (unqualified)
 
 **Processing Lease**:
-A time-bounded claim on a due **Reminder** or **Outbox Event** so a crashed worker does not hold it forever.
+A time-bounded claim on a due **Reminder**, **Outbox Event**, or **Manual** Notification send so a crashed worker does not hold it forever.
 _Avoid_: Lock (unqualified), mutex
 
 **Claim Batch**:
@@ -150,7 +170,7 @@ _Avoid_: Inventing row-level sharing rules in v1
 **User** is the login. **Customer** is the person who owns **Vehicles**. A **Staff Member** is a **User** who is not a **Customer**.
 
 **Reminder vs Notification**:
-**Reminder** answers “is it time?” **Notification** answers “did we deliver?”
+**Reminder** answers “is it time?” **Notification** answers “did we deliver?” A **Manual** Notification has no Reminder. **Delivery Events** answer “what did the provider report?” (opened, bounce) without changing worker status.
 
 **Active**:
 Do not use. Say **Blocking Appointment** (`CONFIRMED`) or “HTTP rate limit still has tokens.”
@@ -189,3 +209,15 @@ Expert: Mail Replay must use the same notification idempotency key. Replay reope
 Dev: They booked 10:00 PM with offset +05:30. Worker is on EC2 in us-east. What does the Reminder mail say?
 
 Expert: 10:00 PM (UTC+05:30), from the Booking Offset stored on that Appointment. Not 16:30 UTC, not US Eastern. Staff GET still shows Dealership Timezone.
+
+Dev: Staff rescheduled. Did we lose the old 24h Notification that already SENT?
+
+Expert: No. Unsent Reminders are CANCELLED; SENT rows stay. Appointment Reminder GET returns every Schedule Version. The shop Notification list only shows rows that exist — cancelled-never-sent offsets stay on the Appointment timeline.
+
+Dev: Staff send a “visit us again” mail from the Appointment. Is that a Reminder?
+
+Expert: No. Generation MANUAL, Channel EMAIL, reminder_id null, dealership_id set. Frontend hydrates the template; API stores subject and body and enqueues the same outbox path.
+
+Dev: Brevo said the Customer opened the mail. Do we flip Notification to OPENED?
+
+Expert: No. Worker status stays SENT. A Delivery Event OPENED is appended. List and stats derive opened from that log.

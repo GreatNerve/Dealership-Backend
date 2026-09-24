@@ -1,6 +1,7 @@
 package com.dealership.shared.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
@@ -8,20 +9,16 @@ import org.junit.jupiter.api.Test;
 class InputsTest {
 
   @Test
-  void sanitizeTrimsAndStripsControls() {
-    assertNull(Inputs.sanitize(null));
-    assertEquals("hello", Inputs.sanitize("  hel\u0000lo \n"));
-    assertEquals("", Inputs.sanitize(" \t\u0000 "));
-  }
-
-  @Test
-  void emailLowercasesAfterSanitize() {
-    assertEquals("a@ex.com", Inputs.email("  A@Ex.COM\u200B "));
-  }
-
-  @Test
-  void pageQuerySanitizesQAndTreatsBlankAsAbsent() {
-    assertEquals("Civic", PageQuery.bind(0, 10, "  \u0000Civic  ", 100, 1000, 100).q());
-    assertNull(PageQuery.bind(0, 10, " \u0000 ", 100, 1000, 100).q());
+  void clipAndFitKeepShortAndHashLong() {
+    assertNull(Inputs.clip(null, 8));
+    assertEquals("hello", Inputs.clip("hello", 8));
+    assertEquals("hello", Inputs.clip("hello!!!", 5));
+    assertEquals("", Inputs.fit(null, 255));
+    assertEquals("e1", Inputs.fit("e1", 255));
+    String longId = "m".repeat(300);
+    String hashed = Inputs.fit(longId, 255);
+    assertEquals(64, hashed.length());
+    assertEquals(hashed, Inputs.fit(longId, 255));
+    assertNotEquals(hashed, Inputs.fit("n".repeat(300), 255));
   }
 }

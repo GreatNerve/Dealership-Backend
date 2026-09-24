@@ -12,7 +12,7 @@ Do not mock Postgres for uniqueness. The assignment is “provable.” An `if` i
 
 ## Stub NotificationSender
 
-Tests never hit Brevo. The stub **records** each call: payload (no raw contact), idempotency key, count, Reminder Offset minutes. Assertions read the recorder, then the database.
+Tests never hit Brevo. The stub **records** each call: payload (no raw contact), idempotency key, Correlation Key (`notifications.id`), count, Reminder Offset minutes (System). Assertions read the recorder, then the database. Webhook tests use the stub adapter, not live provider HTTP.
 
 ## Time
 

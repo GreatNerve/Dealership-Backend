@@ -13,7 +13,7 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Skip / expire / send windows
 
-`ReminderRepository` SQL is **integration** (INSERT CASE EXPIRED, send-window `UPDATE`, claim `WHERE`). Unit tests must not fake `Instant.minus(24, HOURS)` as the source of truth.
+`ReminderRepository` SQL is **integration** (INSERT CASE midpoint + already-SENT skip, send-window `UPDATE`, claim `WHERE`). Unit tests must not fake `Instant.minus(24, HOURS)` as the source of truth.
 
 - `scheduledAt` already past → create rejected (policy lives here; HTTP mapping is e2e).
 - Cancelled or old schedule version → must not send (policy; SQL is integration).
@@ -53,7 +53,10 @@ No Spring context. No containers. Public functions and policies only.
 
 - Customer vs staff capacities as numbers (default **15 / 60s** each; period never longer than 60s).
 - `POST /auth/login` and `POST /auth/register` are different keys. `GET` vs `POST /appointments` are different keys. Two Appointment ids share `GET /appointments/{id}`.
-- Live Redis behaviour is the `test-ratelimit` slice.
+- Instant `from`/`to` binder: `from >= to` invalid. Omitted pair = no filter.
+- `StatsBucket` DAY/WEEK/MONTH slices: shop-zone period starts covering `[from, to)`; WEEK is ISO Monday; intra-day `to` still yields that local day. More than 400 slices is invalid.
+- Delivery webhook adapter maps known Brevo-like names to the generic enum; unknown → empty; JSON array → one ingest per object; array larger than 100 → `VALIDATION_ERROR`; Correlation Key parsed as UUID from the mapped custom-header field (test uses a stub payload, not live Brevo). `Inputs.fit` hashes strings over the varchar max.
+- `NotificationSender` SMTP path is given `correlationId`; unit test does not assert the Brevo header name (that is the adapter).
 
 ## What unit tests must not do
 

@@ -6,9 +6,11 @@ import java.util.UUID;
 
 public record MailSnapshot(
     UUID reminderId,
+    UUID notificationId,
     UUID appointmentId,
-    int offsetMinutes,
-    int scheduleVersion,
+    UUID dealershipId,
+    Integer offsetMinutes,
+    Integer scheduleVersion,
     Instant scheduledAt,
     String displayOffset,
     String dealershipName,
@@ -20,13 +22,23 @@ public record MailSnapshot(
     String contact,
     String idempotencyKey,
     Boolean notifyEnabled,
-    int attempts) {
+    int attempts,
+    NotificationGeneration generation,
+    String subject,
+    String body) {
 
   public boolean fileOnly() {
-    return Boolean.FALSE.equals(notifyEnabled);
+    return generation == NotificationGeneration.SYSTEM && Boolean.FALSE.equals(notifyEnabled);
+  }
+
+  public boolean manual() {
+    return generation == NotificationGeneration.MANUAL;
   }
 
   public String offsetLabel() {
+    if (offsetMinutes == null) {
+      return "manual";
+    }
     Duration offset = Duration.ofMinutes(offsetMinutes);
     if (offset.toDays() > 0 && offset.equals(Duration.ofDays(offset.toDays()))) {
       return offset.toDays() + "d";

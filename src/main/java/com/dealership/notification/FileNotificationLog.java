@@ -62,7 +62,11 @@ public class FileNotificationLog {
       throw new NotificationFailedException("notify-off log failed", true, ex);
     }
     Recorded.add(
-        recorded, new RecordedSend(snapshot.appointmentId(), snapshot.offsetMinutes(), wall));
+        recorded,
+        new RecordedSend(
+            snapshot.appointmentId(),
+            snapshot.offsetMinutes() == null ? 0 : snapshot.offsetMinutes(),
+            wall));
     log.info(
         "notify-off file offset={} appointment_id={} path={}",
         snapshot.offsetLabel(),

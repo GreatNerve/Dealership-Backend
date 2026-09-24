@@ -13,6 +13,7 @@ Budgets stay small so a reviewer is never locked out for minutes: **15 requests 
 | Other unauthenticated | IP | 15 / 60s, that endpoint only |
 | Authenticated `CUSTOMER` | `userId` | 15 / 60s, that endpoint only |
 | Authenticated `STAFF` | `userId` | 15 / 60s, that endpoint only |
+| `POST /webhooks/delivery/{provider}` | — | Not limited (provider bursts; Bearer secret) |
 
 Redis key shape: `{ip\|user}:{id}:{METHOD}:{path}`. IP uses `RemoteAddr` unless `app.rate-limit.trust-forwarded-for` is true.
 

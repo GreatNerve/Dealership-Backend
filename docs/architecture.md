@@ -4,7 +4,7 @@ Normative details: [prd/](prd/README.md), [trd/](trd/README.md), [decision/](dec
 
 ## 1. Shape
 
-One Spring Boot JVM. PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule. The **poller** claims due Reminders and inserts Notification + outbox. The **worker** (2–4) sends. Redis is HTTP rate limit only.
+One Spring Boot JVM. PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule (and Manual Notifications). The **poller** claims due Reminders and inserts Notification + outbox. The **worker** (2–4) sends. A **webhook** appends Delivery Events. Redis is HTTP rate limit only.
 
 ```mermaid
 flowchart TB
@@ -34,7 +34,7 @@ flowchart TB
   subgraph worker [Worker 2 to 4]
     direction TB
     W1["1. Renew lease while sending"]
-    W2["2. File log if notify false, else stub or SMTP"]
+    W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
     W3["3. Mark SENT on reminders and notifications"]
     W1 --> W2 --> W3
   end
@@ -67,7 +67,9 @@ Outbox rows are **not** written here. Reminders sit in Postgres until they are d
 
 Customer path uses `vehicleId + dealershipId + scheduledAt`. Staff path uses `customerId + vehicleId + scheduledAt` and **home Dealership** from `dealership_staff`. Other Venue is Customer self-book. Take **Booking Offset** from `scheduledAt`; mail uses that. Staff GET formats in **Dealership Timezone**. JVM is UTC so EC2 us-east does not affect India bookings. See [trd/time.md](trd/time.md).
 
-Staff mail status: `GET /appointments/{id}/reminders` (home Dealership). Reminder rows exist from create. Each item: `offsetMinutes`, `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone. Nested `notification` is always present: **Not Scheduled** until a Notification row exists, then the stored status. `lastError` is on that object, not the Appointment.
+Staff mail status: `GET /appointments/{id}/reminders` (home Dealership) returns **all Schedule Versions**. Reminder rows exist from create. Each item: `scheduleVersion`, `offsetMinutes`, `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone and groups the list as **this visit** then **previous booking** (no version numbers in the UI). Nested `notification` is always present: **Not Scheduled** until a Notification row exists, then the stored status. `lastError` is on that object, not the Appointment.
+
+Shop-wide: `GET /notifications` filters by `notifications.dealership_id`. List and item GET nest the Appointment (customer, Vehicle, visit time) in one `findAllById` batch. Manual compose: `POST /appointments/{id}/notifications` writes the row + `MANUAL_NOTIFICATION` outbox in one transaction (no Reminder). Staff dashboard is one `GET /dashboard/stats` (range totals + `StatsBucket` slices); do not fan out today / year / daily.
 
 ## 3. Due work
 
@@ -87,7 +89,7 @@ flowchart TB
   subgraph worker [Worker 2 to 4]
     direction TB
     W1["1. Renew lease while sending"]
-    W2["2. File log if notify false, else stub or SMTP"]
+    W2["2. File log if notify false, else stub or SMTP with Correlation Key"]
     W3["3. Mark SENT on reminders and notifications"]
     W1 --> W2 --> W3
   end
@@ -130,39 +132,57 @@ WHERE id IN (
 RETURNING *;
 ```
 
-Same SKIP LOCKED pattern for `outbox_events`. Native SQL / JdbcTemplate for clock and claim — not for Notification/outbox row CRUD.
+Same SKIP LOCKED pattern for `outbox_events` and for **Manual** Notification retries (`NotificationLeaseRepository`). Native SQL / JdbcTemplate for clock and claim — not for Notification/outbox row CRUD.
 
-In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (`IN` the claimed ids — appointment id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, customer name if set, vehicle make/model/year, Vehicle Number, contact, `notify`). Mail worker uses that snapshot; it does not reload the full graph. `notify: false` → append `logs/notifications.log`. `notify: true` → stub or SMTP.
+In the same claim transaction, `INSERT` outbox `payload` from a **lean JOIN** (`IN` the claimed ids — appointment id, notification id, dealership id, offset minutes, schedule version, `scheduled_at`, `display_offset`, dealership name, customer name if set, vehicle make/model/year, Vehicle Number, contact, `notify`). Mail worker uses that snapshot; it does not reload the full graph. `notify: false` → append `logs/notifications.log`. `notify: true` → stub or SMTP with Correlation Key = `notifications.id`.
 
 External I/O is **outside** the claim transaction. Renew the lease (heartbeat) while SMTP runs so a slow send is not stolen. A second short transaction records the result. Stale workers must not complete after lease loss (check `locked_by` / version) and must not send if they lost the lease.
 
 ## 4. Delivery guarantee
 
-At-least-once processing, idempotent Notification key:
+At-least-once processing, unique Notification key:
 
 ```text
-appointmentId + ":" + offsetMinutes + ":" + scheduleVersion
+SYSTEM: appointmentId + ":" + offsetMinutes + ":" + scheduleVersion
+MANUAL: appointmentId + ":MANUAL:" + notificationId
 ```
 
-UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. Exactly-once mail is not claimed if Brevo accepts and the process dies before SENT.
+UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. SMTP also sets the Correlation Key (`notifications.id`) on a provider-mapped header. Exactly-once mail is not claimed if Brevo accepts and the process dies before SENT.
 
-## 5. Cancellation, reschedule, no-show
+## 5. Manual send
+
+Staff `POST /appointments/{id}/notifications` `{ subject, body }` (home Dealership, `Idempotency-Key` required). One transaction: insert Notification (`generation=MANUAL`, `channel=EMAIL`, `dealership_id`, `reminder_id` null, subject/body) + `MANUAL_NOTIFICATION` outbox. Publisher and `MailWorker` are the same as System. Manual send takes a **Notification lease** (heartbeat while SMTP runs); transient fail → `RETRY_SCHEDULED` and the Manual poller re-claims when `next_attempt_at` is due. 202 returns the Notification id. `notify: false` on the Appointment does not apply — Manual uses Notification Mode.
+
+## 6. Delivery webhook
+
+```mermaid
+flowchart LR
+  Provider[Provider]
+  Hook["POST /webhooks/delivery/provider"]
+  Adapter[DeliveryWebhookAdapter]
+  Evt[notification_delivery_events]
+  Provider --> Hook --> Adapter --> Evt
+```
+
+Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic event enum and Correlation Key. One transaction per POST (array max 100). Insert append-only. Duplicate unique key → no second row. Long `provider_event_id` hashed to 64 hex chars. Do not mutate worker `Notification.status`. Staff list/stats `EXISTS` events. Bounce/open buckets use first event in range per Notification.
+
+## 7. Cancellation, reschedule, no-show
 
 - Cancel Confirmed: Customer own or Staff at home Dealership. Appointment `CANCELLED`; unsent Reminders `CANCELLED` in SQL (`UPDATE … WHERE`); no unsend of SENT. Other customer / other shop → 404.
 - Staff complete Confirmed: Appointment `COMPLETED`; same Reminder cancel; Vehicle no longer Blocking. Other shop → 404. Customer → 403.
-- Reschedule Confirmed: Customer own or Staff at home Dealership. Reject if current visit already past, if new `scheduledAt` is past, or if Instant is unchanged. Cancel unsent Reminders; insert new Reminder rows with `schedule_version = MAX+1` (Reminders own the version; Appointment is not bumped); `INSERT … SELECT` + interval; offsets whose due is already past insert `EXPIRED` (no catch-up 24h). No outbox until those are due. Other customer / other shop → 404.
+- Reschedule Confirmed: Customer own or Staff at home Dealership. Reject if current visit already past, if new `scheduledAt` is past, or if Instant is unchanged. Cancel unsent Reminders; insert new Reminder rows with `schedule_version = MAX+1` (Reminders own the version; Appointment is not bumped); `INSERT … SELECT` + interval; insert uses send-window midpoint, and skips an offset again only when it was already SENT and the new due is past. SENT Notifications stay. Reminder GET returns **all versions**. Shop Notification list only existing rows. No outbox until new Reminders are due. Other customer / other shop → 404.
 - No-show job: set-based SQL `now() >= scheduled_at + interval '1 hour'` → `NO_SHOW_EXPIRED`; Vehicle free for a new Confirmed row.
 
-v1 reads: own or home Dealership, else 404; lists paginated and searchable (`q`). **In Progress** is later.
+v1 reads: own or home Dealership, else 404; lists paginated and searchable (`q`). Appointment list Instant `from`/`to` on `scheduled_at`. Staff `GET /notifications` by `dealership_id`. **In Progress** is later.
 
-## 6. Rate limiting
+## 8. Rate limiting
 
-Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. IP comes from `request.getRemoteAddr()` unless `app.rate-limit.trust-forwarded-for` (`APP_RATE_LIMIT_TRUST_FORWARDED_FOR`) is true, in which case the first `X-Forwarded-For` hop is used. Default **false** — do not trust that header unless a reverse proxy is in front. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
+Token bucket in Redis, **one bucket per HTTP endpoint** (method + path; UUID segments collapsed). Identity is `userId` when JWT is present, IP on login/register and other anonymous calls. Login and register do not share tokens. Delivery webhooks are not limited. IP comes from `request.getRemoteAddr()` unless `app.rate-limit.trust-forwarded-for` (`APP_RATE_LIMIT_TRUST_FORWARDED_FOR`) is true, in which case the first `X-Forwarded-For` hop is used. Default **false** — do not trust that header unless a reverse proxy is in front. Every endpoint is **15 requests / 60 seconds** (period never longer than 60s) so a Swagger review is not locked out, except `POST /webhooks/delivery/{provider}` which is not limited. 429 + `X-RateLimit-*` + `Retry-After`. Disabled in tests. Not used for mail and not used for Vehicle uniqueness.
 
-## 7. What scales at 50k/day (sized at 500k)
+## 9. What scales at 50k/day (sized at 500k)
 
 **Why 500k:** the PDF is 50k Appointments/day / 500 Dealerships; 10× is review headroom (one order of magnitude), not a second multiplier on the poll. **Why CPU-sized pools:** this laptop, Docker, and EC2 do not share cores; guessing Hikari=20 / batch=10 is wrong on every other box. **Why a Claim Batch at all:** `LIMIT 1` / 500ms is 2/s; an 8-hour 500k day with two offsets needs ~35/s; floor **18** is that drain per poll (`500_000/28_800×2×0.5`). Cap 50 so Java never `findAll`s due rows. Hikari `2×CPUs` (Postgres-on-SSD); Tomcat `16×CPUs` capped at Spring’s 200. Mail stays 2–4 because SMTP is the limiter. Kafka is still theatre. Full why: [decision/scale.md](decision/scale.md).
 
-## 8. Demo path
+## 10. Demo path
 
 Seed: 1 Dealership, 1 Staff Member, 1 Customer, 2 Vehicles. Default `app.notifications.mode=stub`. Optionally `smtp` + **Brevo**. `notify: false` writes `logs/notifications.log`. Video: POST Appointment → logs → DB rows. Same Idempotency-Key replay is the reliability clip.

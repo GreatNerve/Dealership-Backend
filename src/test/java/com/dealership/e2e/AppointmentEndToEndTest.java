@@ -325,15 +325,19 @@ class AppointmentEndToEndTest extends AbstractIT {
     jdbc.update(
         """
         INSERT INTO notifications (
-          id, reminder_id, appointment_id, offset_minutes, idempotency_key, status,
+          id, reminder_id, appointment_id, dealership_id, offset_minutes,
+          channel, generation, idempotency_key, status,
           attempts, last_error, created_at, updated_at)
-        VALUES (?, ?, ?, 1440, ?, CAST('DEAD_LETTER' AS notification_status), 5, 'smtp failed',
-          now(), now())
+        SELECT ?, ?, a.id, a.dealership_id, 1440,
+          'EMAIL'::notification_channel, 'SYSTEM'::notification_generation,
+          ?, CAST('DEAD_LETTER' AS notification_status), 5, 'smtp failed', now(), now()
+        FROM appointments a
+        WHERE a.id = ?
         """,
         notificationId,
         reminderId,
-        created.id(),
-        key);
+        key,
+        created.id());
     ResponseEntity<String> replay =
         http.exchange(
             "/api/v1/notifications/" + notificationId + "/replay",

@@ -19,14 +19,27 @@ public class NotificationEntity {
 
   @Id private UUID id;
 
-  @Column(name = "reminder_id", nullable = false)
-  private UUID reminderId;
+  @Column(name = "dealership_id", nullable = false)
+  private UUID dealershipId;
 
   @Column(name = "appointment_id", nullable = false)
   private UUID appointmentId;
 
-  @Column(name = "offset_minutes", nullable = false)
-  private int offsetMinutes;
+  @Column(name = "reminder_id")
+  private UUID reminderId;
+
+  @Column(name = "offset_minutes")
+  private Integer offsetMinutes;
+
+  @Enumerated(EnumType.STRING)
+  @JdbcType(PostgreSQLEnumJdbcType.class)
+  @Column(nullable = false, columnDefinition = "notification_channel")
+  private NotificationChannel channel = NotificationChannel.EMAIL;
+
+  @Enumerated(EnumType.STRING)
+  @JdbcType(PostgreSQLEnumJdbcType.class)
+  @Column(nullable = false, columnDefinition = "notification_generation")
+  private NotificationGeneration generation = NotificationGeneration.SYSTEM;
 
   @Column(name = "idempotency_key", nullable = false, unique = true)
   private String idempotencyKey;
@@ -47,6 +60,18 @@ public class NotificationEntity {
 
   @Column(name = "sent_at")
   private Instant sentAt;
+
+  @Column(name = "locked_by", length = 64)
+  private String lockedBy;
+
+  @Column(name = "lease_expires_at")
+  private Instant leaseExpiresAt;
+
+  @Column(length = 255)
+  private String subject;
+
+  @Column(columnDefinition = "text")
+  private String body;
 
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
@@ -75,6 +100,8 @@ public class NotificationEntity {
     lastError = null;
     nextAttemptAt = null;
     sentAt = null;
+    lockedBy = null;
+    leaseExpiresAt = null;
   }
 
   public void markSent() {
@@ -106,6 +133,18 @@ public class NotificationEntity {
     return id;
   }
 
+  public void setId(UUID id) {
+    this.id = id;
+  }
+
+  public UUID getDealershipId() {
+    return dealershipId;
+  }
+
+  public void setDealershipId(UUID dealershipId) {
+    this.dealershipId = dealershipId;
+  }
+
   public UUID getReminderId() {
     return reminderId;
   }
@@ -122,12 +161,36 @@ public class NotificationEntity {
     this.appointmentId = appointmentId;
   }
 
-  public void setOffsetMinutes(int offsetMinutes) {
+  public Integer getOffsetMinutes() {
+    return offsetMinutes;
+  }
+
+  public void setOffsetMinutes(Integer offsetMinutes) {
     this.offsetMinutes = offsetMinutes;
+  }
+
+  public NotificationChannel getChannel() {
+    return channel;
+  }
+
+  public void setChannel(NotificationChannel channel) {
+    this.channel = channel;
+  }
+
+  public NotificationGeneration getGeneration() {
+    return generation;
+  }
+
+  public void setGeneration(NotificationGeneration generation) {
+    this.generation = generation;
   }
 
   public void setIdempotencyKey(String idempotencyKey) {
     this.idempotencyKey = idempotencyKey;
+  }
+
+  public String getIdempotencyKey() {
+    return idempotencyKey;
   }
 
   public NotificationStatus getStatus() {
@@ -152,5 +215,25 @@ public class NotificationEntity {
 
   public Instant getNextAttemptAt() {
     return nextAttemptAt;
+  }
+
+  public String getSubject() {
+    return subject;
+  }
+
+  public void setSubject(String subject) {
+    this.subject = subject;
+  }
+
+  public String getBody() {
+    return body;
+  }
+
+  public void setBody(String body) {
+    this.body = body;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
   }
 }

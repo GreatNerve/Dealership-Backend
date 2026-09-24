@@ -15,7 +15,7 @@
 | Broker | RabbitMQ, Spring AMQP |
 | Cache | Redis (Lettuce) for Bucket4j only |
 | Rate limit | Bucket4j token bucket + Redis |
-| Mail | Stub default; Brevo SMTP; `notify: false` appends `logs/notifications.log`; **2–4** workers (default 2); 30s lease + heartbeat |
+| Mail | Stub default; Brevo SMTP + custom Correlation header; `notify: false` appends `logs/notifications.log` on System due path; **2–4** workers (default 2); 30s lease + heartbeat; Delivery Webhook adapters |
 | Reminders | Config `app.reminders.offsets` Duration list (`APP_REMINDER_OFFSETS`, default `24h,2h`) and `app.reminders.no-show-grace`. Due times via SQL `offset_minutes * interval '1 minute'`. |
 | Enums | PostgreSQL `ENUM` types + Java enums for **closed** statuses/roles/`ApiErrorCode`. Reminder offsets are config minutes, not an enum. |
 | Format | Spotless + Google Java Format. `./mvnw spotless:apply`. See [code-style.md](code-style.md). |

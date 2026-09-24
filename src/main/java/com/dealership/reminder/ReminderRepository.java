@@ -1,6 +1,8 @@
 package com.dealership.reminder;
 
 import com.dealership.appointment.AppointmentStatus;
+import com.dealership.notification.NotificationGeneration;
+import com.dealership.notification.NotificationStatus;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
@@ -57,12 +59,19 @@ public class ReminderRepository {
                a.id,
                :offsetMinutes,
                :scheduleVersion,
-               a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'),
-                   -- Due already past → EXPIRED (late book / reschedule inside that offset).
-                   -- Due still in the future → PENDING (normal create; mail sends when due).
+               w.due,
+                   -- Same midpoint as claim. Skip again only when this offset already SENT
+                   -- and the new due is past (reschedule inside 24h after they got the 24h).
                    CASE
-                     WHEN now() >=
-                       (a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute'))
+                     WHEN EXISTS (
+                       SELECT 1 FROM notifications n
+                       WHERE n.appointment_id = a.id
+                         AND n.offset_minutes = :offsetMinutes
+                         AND n.generation = CAST(:system AS notification_generation)
+                         AND n.status = CAST(:sent AS notification_status))
+                       AND now() >= w.due
+                       THEN CAST(:expired AS reminder_status)
+                     WHEN now() >= w.due + (w.next_due - w.due) / 2
                        THEN CAST(:expired AS reminder_status)
                      ELSE CAST(:pending AS reminder_status)
                    END,
@@ -70,6 +79,14 @@ public class ReminderRepository {
                now(),
                now()
         FROM appointments a
+        CROSS JOIN LATERAL (
+          SELECT a.scheduled_at - (CAST(:offsetMinutes AS int) * interval '1 minute') AS due,
+                 CASE
+                   WHEN :nextOffsetMinutes IS NULL THEN a.scheduled_at
+                   ELSE a.scheduled_at
+                     - (CAST(:nextOffsetMinutes AS int) * interval '1 minute')
+                 END AS next_due
+        ) w
         WHERE a.id = :appointmentId
         """,
         new MapSqlParameterSource()
@@ -78,7 +95,9 @@ public class ReminderRepository {
             .addValue("nextOffsetMinutes", nextOffsetMinutes, Types.INTEGER)
             .addValue("scheduleVersion", scheduleVersion)
             .addValue("expired", ReminderStatus.EXPIRED.name())
-            .addValue("pending", ReminderStatus.PENDING.name()));
+            .addValue("pending", ReminderStatus.PENDING.name())
+            .addValue("system", NotificationGeneration.SYSTEM.name())
+            .addValue("sent", NotificationStatus.SENT.name()));
   }
 
   public int nextScheduleVersion(UUID appointmentId) {
@@ -94,23 +113,20 @@ public class ReminderRepository {
     return next == null ? 1 : next;
   }
 
-  public List<ReminderRow> listCurrentVersion(UUID appointmentId) {
+  public List<ReminderRow> listHistory(UUID appointmentId) {
     return jdbc.query(
         """
-        SELECT id, offset_minutes, scheduled_at, status
+        SELECT id, offset_minutes, schedule_version, scheduled_at, status
         FROM reminders
         WHERE appointment_id = :appointmentId
-          AND schedule_version = (
-            SELECT COALESCE(MAX(schedule_version), 0)
-            FROM reminders
-            WHERE appointment_id = :appointmentId)
-        ORDER BY offset_minutes DESC
+        ORDER BY schedule_version DESC, offset_minutes DESC
         """,
         new MapSqlParameterSource().addValue("appointmentId", appointmentId),
         (rs, i) ->
             new ReminderRow(
                 rs.getObject("id", UUID.class),
                 rs.getInt("offset_minutes"),
+                rs.getInt("schedule_version"),
                 rs.getTimestamp("scheduled_at").toInstant(),
                 ReminderStatus.valueOf(rs.getString("status"))));
   }
@@ -235,6 +251,52 @@ public class ReminderRepository {
                 rs.getInt("attempts")));
   }
 
+  public Optional<MailFacts> loadMailFactsForAppointment(UUID appointmentId) {
+    return jdbc
+        .query(
+            """
+            SELECT a.id AS appointment_id,
+                   a.dealership_id,
+                   a.scheduled_at,
+                   a.display_offset,
+                   d.name AS dealership_name,
+                   u.name AS customer_name,
+                   v.make AS vehicle_make,
+                   v.model AS vehicle_model,
+                   v.year AS vehicle_year,
+                   v.registration_number,
+                   c.contact,
+                   a."notify"
+            FROM appointments a
+            JOIN customers c ON c.id = a.customer_id
+            JOIN users u ON u.id = c.user_id
+            JOIN dealerships d ON d.id = a.dealership_id
+            JOIN vehicles v ON v.id = a.vehicle_id
+            WHERE a.id = :id
+            """,
+            new MapSqlParameterSource().addValue("id", appointmentId),
+            (rs, i) ->
+                new MailFacts(
+                    null,
+                    rs.getObject("appointment_id", UUID.class),
+                    rs.getObject("dealership_id", UUID.class),
+                    0,
+                    0,
+                    rs.getTimestamp("scheduled_at").toInstant(),
+                    rs.getString("display_offset"),
+                    rs.getString("dealership_name"),
+                    rs.getString("customer_name"),
+                    rs.getString("vehicle_make"),
+                    rs.getString("vehicle_model"),
+                    rs.getObject("vehicle_year", Integer.class),
+                    rs.getString("registration_number"),
+                    rs.getString("contact"),
+                    rs.getBoolean("notify"),
+                    0))
+        .stream()
+        .findFirst();
+  }
+
   public Optional<MailFacts> loadMailFacts(UUID reminderId) {
     return loadMailFacts(List.of(reminderId)).stream().findFirst();
   }
@@ -247,6 +309,7 @@ public class ReminderRepository {
         """
         SELECT r.id AS reminder_id,
                a.id AS appointment_id,
+               a.dealership_id,
                r.offset_minutes,
                r.schedule_version,
                a.scheduled_at,
@@ -273,6 +336,7 @@ public class ReminderRepository {
             new MailFacts(
                 rs.getObject("reminder_id", UUID.class),
                 rs.getObject("appointment_id", UUID.class),
+                rs.getObject("dealership_id", UUID.class),
                 rs.getInt("offset_minutes"),
                 rs.getInt("schedule_version"),
                 rs.getTimestamp("scheduled_at").toInstant(),
@@ -428,7 +492,8 @@ public class ReminderRepository {
     return error.length() <= 1024 ? error : error.substring(0, 1024);
   }
 
-  public record ReminderRow(UUID id, int offsetMinutes, Instant dueAt, ReminderStatus status) {}
+  public record ReminderRow(
+      UUID id, int offsetMinutes, int scheduleVersion, Instant dueAt, ReminderStatus status) {}
 
   public record ClaimedReminder(
       UUID id,
@@ -441,6 +506,7 @@ public class ReminderRepository {
   public record MailFacts(
       UUID reminderId,
       UUID appointmentId,
+      UUID dealershipId,
       int offsetMinutes,
       int scheduleVersion,
       Instant scheduledAt,

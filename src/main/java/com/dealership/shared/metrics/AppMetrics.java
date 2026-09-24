@@ -15,6 +15,7 @@ public class AppMetrics {
   private final Counter notificationsDead;
   private final Counter leaseSkips;
   private final Counter outboxPublished;
+  private final Counter deliveryEvents;
   private final DistributionSummary latenessSeconds;
 
   public AppMetrics(MeterRegistry registry) {
@@ -25,6 +26,7 @@ public class AppMetrics {
     this.notificationsDead = registry.counter("dealership.notifications.dead");
     this.leaseSkips = registry.counter("dealership.notifications.lease_skip");
     this.outboxPublished = registry.counter("dealership.outbox.published");
+    this.deliveryEvents = registry.counter("dealership.delivery_events.ingested");
     this.latenessSeconds =
         DistributionSummary.builder("dealership.notifications.lateness")
             .baseUnit("seconds")
@@ -60,5 +62,15 @@ public class AppMetrics {
 
   public void outboxPublished() {
     outboxPublished.increment();
+  }
+
+  public void deliveryEventIngested() {
+    deliveryEventsIngested(1);
+  }
+
+  public void deliveryEventsIngested(int count) {
+    if (count > 0) {
+      deliveryEvents.increment(count);
+    }
   }
 }

@@ -71,7 +71,7 @@ class InputValidationTest extends AbstractIT {
     MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
     form.add("grant_type", "password");
     form.add("client_id", "swagger");
-    form.add("username", "customer@demo.local");
+    form.add("username", "customer@greatnerve.com");
     form.add("password", "short");
     ResponseEntity<String> oauth =
         http.postForEntity("/api/v1/auth/login", new HttpEntity<>(form, headers), String.class);
