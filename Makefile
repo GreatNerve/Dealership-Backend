@@ -1,7 +1,12 @@
 .PHONY: help hooks fmt check test run stop deps app up down precommit appointment
 
 MAKEFLAGS += --no-print-directory
-MVNW := ./mvnw
+# Windows Make resolves ./mvnw to mvnw.cmd but still passes "./mvnw" to cmd → '.' not recognized.
+ifeq ($(OS),Windows_NT)
+  MVNW := mvnw.cmd
+else
+  MVNW := ./mvnw
+endif
 PORT ?= 8080
 COMPOSE_DEPS := docker/docker-compose.deps.yml
 COMPOSE_APP := docker/docker-compose.app.yml
@@ -13,7 +18,7 @@ help:
 	@echo "hooks      install git pre-commit (format + test)"
 	@echo "fmt        Spotless apply"
 	@echo "check      Spotless check"
-	@echo "test       format then ./mvnw test (Testcontainers)"
+	@echo "test       format then mvnw test (Testcontainers)"
 	@echo "deps       docker compose deps only (Postgres, RabbitMQ, Redis)"
 	@echo "run        deps + spring-boot:run"
 	@echo "app        deps + app image only (docker/docker-compose.app.yml)"
