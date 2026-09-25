@@ -7,13 +7,13 @@ Full JUnit suite for the Dealership Appointment API. Strategy plans: [docs/testi
 | | |
 | --- | --- |
 | Command | `./mvnw test` |
-| Date | 2026-09-23 |
+| Date | 2026-09-25 |
 | Result | **BUILD SUCCESS** |
-| Tests | **88** |
+| Tests | **117** |
 | Failures | 0 |
 | Errors | 0 |
 | Skipped | 0 |
-| Wall time | ~48 s (Maven); Surefire class sum ~41 s |
+| Wall time | ~72 s (Maven) |
 
 Harness: Testcontainers Postgres 16 + RabbitMQ 3.13 + Redis 7.4. Profile `test` (rate limits off, Notification mode stub).
 
@@ -23,8 +23,8 @@ Re-run: `./mvnw test` or `make test`. Refresh this file after any suite that cha
 
 | Test | Class | Result | Time |
 | --- | --- | --- | --- |
-| `concurrentClaimsSendOnce` | `appointment.AppointmentFlowTest` | **PASS** | 0.368 s |
-| `crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly` | `appointment.AppointmentFlowTest` | **PASS** | 0.423 s |
+| `concurrentClaimsSendOnce` | `appointment.AppointmentFlowTest` | **PASS** | 0.493 s |
+| `crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly` | `appointment.AppointmentFlowTest` | **PASS** | 0.610 s |
 
 Crash test: after provider accept / before durable `SENT`, reclaim retries the same idempotency key; Notification is stored **once** (`SENT`).
 
@@ -101,8 +101,7 @@ Plan: [docs/testing/uniqueness-and-concurrency.md](docs/testing/uniqueness-and-c
 | `markSentRequiresLiveProcessingLease` | `appointment.AppointmentFlowTest` | Only live `mail-*` owner can mark SENT |
 | `notifyOffLogOnlyWhenInsideMidpointWindow` | `appointment.AppointmentFlowTest` | Midpoint window for notify-off log |
 | Transient vs permanent; max → dead-letter | `notification.smtp.RetryPolicyTest` | Retry / dead-letter policy |
-| Retry policy (notification package) | `notification.RetryPolicyTest` | Backoff / attempt caps |
-| Invalid-contact detection | `notification.smtp.SmtpFailuresTest` | Permanent failure class |
+| SMTP 4xx vs 5xx | `notification.smtp.SmtpFailuresTest` | `421`/`450`/`451`/`452` retry; 5xx and a bad address stay permanent |
 | Claim batch / workers config | `shared.config.AppPropertiesWorkersTest` | Worker config binding |
 | Hikari / Tomcat / Claim Batch from CPUs | `shared.config.HardwareSizingTest` | Auto sizing |
 
@@ -129,11 +128,11 @@ Plan: [docs/testing/uniqueness-and-concurrency.md](docs/testing/uniqueness-and-c
 
 | Class | Tests | What it proves |
 | --- | --- | --- |
-| `appointment.AppointmentPolicyTest` | 4 | Past `scheduledAt` rejected; second Confirmed conflicts; two Vehicles OK |
-| `notification.ReminderMailTest` | 4 | Booking Offset wall time; greeting; HTML escape; vehicle line |
-| `shared.time.BookingTimesTest` | 6 | Parse offset; mail local time; no host zone |
+| `appointment.AppointmentPolicyTest` | 5 | Past `scheduledAt` rejected; second Confirmed conflicts; two Vehicles OK |
+| `notification.ReminderMailTest` | 5 | Booking Offset wall time; greeting; HTML escape; vehicle line |
+| `shared.time.BookingTimesTest` | 7 | Parse offset; mail local time; no host zone |
 | `shared.config.ReminderOffsetsTest` | 3 | Config offset list |
-| `shared.api.InputsTest` | 3 | Sanitize / email lowercase |
+| `shared.api.InputsTest` | 2 | Sanitize / email lowercase |
 | `vehicle.VehicleNumbersTest` | 3 | Plate normalize / unique form |
 
 ---
@@ -155,30 +154,38 @@ Plan: [docs/testing/uniqueness-and-concurrency.md](docs/testing/uniqueness-and-c
 
 | Class | Tests | Fail | Err | Skip | Time | Rank |
 | --- | --- | --- | --- | --- | --- | --- |
-| `appointment.AppointmentFlowTest` | 19 | 0 | 0 | 0 | 32.030 s | 1–5 |
-| `e2e.AppointmentEndToEndTest` | 11 | 0 | 0 | 0 | 4.810 s | 1–5 |
-| `appointment.OneConfirmedPerVehicleOffIT` | 1 | 0 | 0 | 0 | 1.428 s | 1 |
-| `appointment.AppointmentPolicyTest` | 4 | 0 | 0 | 0 | 0.003 s | 1, 6 |
-| `e2e.RequestCapacityTest` | 1 | 0 | 0 | 0 | 0.975 s | 5 |
-| `identity.AuthFlowTest` | 1 | 0 | 0 | 0 | 0.200 s | 3 |
-| `shared.config.SecurityHeadersAndMetricsTest` | 2 | 0 | 0 | 0 | 0.949 s | 3 |
-| `shared.api.InputValidationTest` | 6 | 0 | 0 | 0 | 0.859 s | 5 |
-| `notification.smtp.RetryPolicyTest` | 4 | 0 | 0 | 0 | 0.002 s | 4 |
-| `notification.RetryPolicyTest` | 3 | 0 | 0 | 0 | 0.005 s | 4 |
-| `notification.smtp.SmtpFailuresTest` | 1 | 0 | 0 | 0 | 0.001 s | 4 |
-| `shared.config.AppPropertiesWorkersTest` | 4 | 0 | 0 | 0 | 0.004 s | 4 |
-| `shared.config.HardwareSizingTest` | 3 | 0 | 0 | 0 | 0.003 s | 4 |
-| `shared.security.JwtServiceTest` | 1 | 0 | 0 | 0 | 0.002 s | 3 |
-| `shared.config.AppPropertiesJwtTest` | 2 | 0 | 0 | 0 | 0.005 s | 3 |
-| `shared.api.ApiErrorCodeTest` | 1 | 0 | 0 | 0 | 0.001 s | 5 |
-| `shared.api.GlobalExceptionHandlerTest` | 1 | 0 | 0 | 0 | 0.001 s | 5 |
-| `shared.ratelimit.RateLimitKeysTest` | 4 | 0 | 0 | 0 | 0.002 s | 5 |
-| `notification.ReminderMailTest` | 4 | 0 | 0 | 0 | 0.004 s | 6 |
-| `shared.time.BookingTimesTest` | 6 | 0 | 0 | 0 | 0.003 s | 6 |
-| `shared.config.ReminderOffsetsTest` | 3 | 0 | 0 | 0 | 0.002 s | 6 |
-| `shared.api.InputsTest` | 3 | 0 | 0 | 0 | 0.001 s | 6 |
-| `vehicle.VehicleNumbersTest` | 3 | 0 | 0 | 0 | 0.001 s | 6 |
-| **Total** | **88** | **0** | **0** | **0** | | |
+| `appointment.AppointmentFlowTest` | 24 | 0 | 0 | 0 | 47.100 s | 1–5 |
+| `e2e.AppointmentEndToEndTest` | 11 | 0 | 0 | 0 | 6.439 s | 1–5 |
+| `appointment.AppointmentPolicyTest` | 5 | 0 | 0 | 0 | 0.005 s | 1, 6 |
+| `dealership.DashboardStatsTest` | 1 | 0 | 0 | 0 | 0.500 s | 5 |
+| `e2e.RequestCapacityTest` | 1 | 0 | 0 | 0 | 1.397 s | 5 |
+| `identity.AuthFlowTest` | 1 | 0 | 0 | 0 | 0.295 s | 3 |
+| `identity.CredentialsTest` | 1 | 0 | 0 | 0 | 0.456 s | 3 |
+| `shared.config.SecurityHeadersAndMetricsTest` | 2 | 0 | 0 | 0 | 1.459 s | 3 |
+| `shared.api.InputValidationTest` | 6 | 0 | 0 | 0 | 1.189 s | 5 |
+| `notification.smtp.RetryPolicyTest` | 4 | 0 | 0 | 0 | 0.003 s | 4 |
+| `notification.smtp.SmtpFailuresTest` | 2 | 0 | 0 | 0 | 0.004 s | 4 |
+| `notification.webhook.DeliveryWebhookAdapterTest` | 6 | 0 | 0 | 0 | 0.007 s | 4 |
+| `notification.RecordedTest` | 1 | 0 | 0 | 0 | 0.001 s | 6 |
+| `shared.config.AppPropertiesWorkersTest` | 4 | 0 | 0 | 0 | 0.005 s | 4 |
+| `shared.config.HardwareSizingTest` | 3 | 0 | 0 | 0 | 0.002 s | 4 |
+| `shared.security.JwtServiceTest` | 1 | 0 | 0 | 0 | 0.001 s | 3 |
+| `shared.security.SecretsTest` | 2 | 0 | 0 | 0 | 0.001 s | 3 |
+| `shared.config.AppPropertiesJwtTest` | 2 | 0 | 0 | 0 | 0.006 s | 3 |
+| `shared.api.ApiErrorCodeTest` | 1 | 0 | 0 | 0 | 0.000 s | 5 |
+| `shared.api.GlobalExceptionHandlerTest` | 1 | 0 | 0 | 0 | 0.002 s | 5 |
+| `shared.api.InstantRangeTest` | 3 | 0 | 0 | 0 | 0.004 s | 5 |
+| `shared.api.StatsBucketTest` | 5 | 0 | 0 | 0 | 0.006 s | 5 |
+| `shared.ratelimit.RateLimitKeysTest` | 4 | 0 | 0 | 0 | 0.005 s | 5 |
+| `shared.ratelimit.ClientIpsTest` | 4 | 0 | 0 | 0 | 2.696 s | 5 |
+| `shared.config.JacksonSanitizeTest` | 1 | 0 | 0 | 0 | 0.005 s | 6 |
+| `shared.db.SqlValuesTest` | 1 | 0 | 0 | 0 | 0.001 s | 6 |
+| `notification.ReminderMailTest` | 5 | 0 | 0 | 0 | 0.007 s | 6 |
+| `shared.time.BookingTimesTest` | 7 | 0 | 0 | 0 | 0.007 s | 6 |
+| `shared.config.ReminderOffsetsTest` | 3 | 0 | 0 | 0 | 0.003 s | 6 |
+| `shared.api.InputsTest` | 2 | 0 | 0 | 0 | 0.003 s | 6 |
+| `vehicle.VehicleNumbersTest` | 3 | 0 | 0 | 0 | 0.002 s | 6 |
+| **Total** | **117** | **0** | **0** | **0** | | |
 
 Package prefix: `com.dealership.`.
 
@@ -190,3 +197,4 @@ Package prefix: `com.dealership.`.
 | --- | --- |
 | Rate-limit HTTP burst | [docs/testing/end-to-end.md](docs/testing/end-to-end.md) (`test-ratelimit`); off by default |
 | Manual Appointment | [manual-appointment.md](manual-appointment.md) / `make appointment` |
+| `appointment.OneConfirmedPerVehicleOffIT` | Class name ends in `IT`. This `./mvnw test` run did not execute it |

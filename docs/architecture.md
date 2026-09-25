@@ -185,14 +185,14 @@ External I/O is **outside** the claim transaction. Renew the lease (heartbeat) w
 
 ## 4. Delivery guarantee
 
-At-least-once processing, unique Notification key:
+At-least-once **claim/outbox**, at-most-once **send** per Notification key:
 
 ```text
 SYSTEM: appointmentId + ":" + offsetMinutes + ":" + scheduleVersion
 MANUAL: appointmentId + ":MANUAL:" + notificationId
 ```
 
-UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. SMTP also sets the Correlation Key (`notifications.id`) on a provider-mapped header. Exactly-once mail is not claimed if Brevo accepts and the process dies before SENT.
+UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. After `NotificationSender.send` returns OK, persist transport-accepted; reclaim heals to `SENT` and must not call the sender again. SMTP also sets the Correlation Key (`notifications.id`) and a stable Message-ID from the key. Why: [decision/at-least-once-idempotency.md](decision/at-least-once-idempotency.md).
 
 ## 5. Manual send
 

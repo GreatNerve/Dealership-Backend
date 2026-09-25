@@ -6,13 +6,7 @@ Public host: [https://dealership.greatnerve.com](https://dealership.greatnerve.c
 
 Staff UI: [https://dship.greatnerve.com/](https://dship.greatnerve.com/)
 
-## Email handoff
-
-Attach **[docs/handoff-and-next-week.pdf](docs/handoff-and-next-week.pdf)**. Regenerate it with `python scripts/generate-handoff-pdf.py`.
-
-Longer source (assignment map, samples, failure cases): **[docs/handoff-and-next-week.md](docs/handoff-and-next-week.md)**.
-
-Production staff login is the seed user **`staff@greatnerve.com` / `password1`**. Shared demo account is in the PDF.
+Production staff login is the seed user **`staff@greatnerve.com` / `password1`**.
 
 Design docs: [github.com/GreatNerve/Dealership-Backend/tree/main/docs](https://github.com/GreatNerve/Dealership-Backend/tree/main/docs). Test inventory: [test-report.md](test-report.md) · [GitHub](https://github.com/GreatNerve/Dealership-Backend/blob/main/test-report.md).
 
