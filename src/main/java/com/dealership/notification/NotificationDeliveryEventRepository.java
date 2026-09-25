@@ -15,6 +15,9 @@ public interface NotificationDeliveryEventRepository
 
   List<NotificationDeliveryEventEntity> findByNotificationIdIn(Collection<UUID> notificationIds);
 
+  boolean existsByNotificationIdAndEventTypeIn(
+      UUID notificationId, Collection<DeliveryEventType> types);
+
   @Query(
       """
       SELECT DISTINCT e.notificationId AS notificationId, e.eventType AS eventType

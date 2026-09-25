@@ -103,28 +103,23 @@ public class MailWorker {
 
   private void sendSystem(MailSnapshot snapshot) throws NotificationFailedException {
     if (notifications.alreadySent(snapshot.idempotencyKey())) {
-      if (reminders.heartbeat(snapshot.reminderId(), workerId, properties.getWorkers().getLease())
-          && reminders.markSent(snapshot.reminderId(), workerId)) {
-        return;
-      }
-      log.info("skip complete, reminder lease lost");
-      metrics.leaseSkip();
+      reminders.heartbeat(snapshot.reminderId(), workerId, properties.getWorkers().getLease());
+      reminders.markSent(snapshot.reminderId(), workerId);
       return;
     }
     if (!reminders.heartbeat(snapshot.reminderId(), workerId, properties.getWorkers().getLease())) {
-      log.info("skip send, reminder not processing");
+      reminders.deferUntilProviderProof(snapshot.reminderId());
+      log.info("skip send, waiting for provider webhook");
       metrics.leaseSkip();
       return;
     }
-    deliver(snapshot);
-    if (!reminders.markSent(snapshot.reminderId(), workerId)) {
-      log.info("skip complete, reminder lease lost");
-      metrics.leaseSkip();
+    if (notifications.providerAlreadyAccepted(snapshot.notificationId())) {
+      reminders.markSent(snapshot.reminderId(), workerId);
+      notifications.markSent(snapshot.idempotencyKey());
+      log.info("skip send, provider already accepted");
       return;
     }
-    notifications.markSent(snapshot.idempotencyKey());
-    metrics.sent(latenessSeconds(snapshot));
-    log.info("notification sent offset={}", snapshot.offsetLabel());
+    deliverAndCompleteSystem(snapshot);
   }
 
   private void sendManual(MailSnapshot snapshot) throws NotificationFailedException {
@@ -133,15 +128,40 @@ public class MailWorker {
     }
     if (!notifications.heartbeatManual(
         snapshot.notificationId(), workerId, properties.getWorkers().getLease())) {
-      log.info("skip send, notification lease lost");
+      notifications.deferManualUntilProviderProof(snapshot.notificationId());
+      log.info("skip send, waiting for provider webhook");
       metrics.leaseSkip();
+      return;
+    }
+    if (notifications.providerAlreadyAccepted(snapshot.notificationId())) {
+      if (!notifications.markSentManual(snapshot.notificationId(), workerId)) {
+        notifications.markSent(snapshot.idempotencyKey());
+      }
+      log.info("skip send, provider already accepted");
+      return;
+    }
+    deliverAndCompleteManual(snapshot);
+  }
+
+  // alreadySent → deliver → durable SENT as one unit.
+  private void deliverAndCompleteSystem(MailSnapshot snapshot) throws NotificationFailedException {
+    if (notifications.alreadySent(snapshot.idempotencyKey())) {
+      return;
+    }
+    deliver(snapshot);
+    notifications.markSent(snapshot.idempotencyKey());
+    reminders.markSent(snapshot.reminderId(), workerId);
+    metrics.sent(latenessSeconds(snapshot));
+    log.info("notification sent offset={}", snapshot.offsetLabel());
+  }
+
+  private void deliverAndCompleteManual(MailSnapshot snapshot) throws NotificationFailedException {
+    if (notifications.alreadySent(snapshot.idempotencyKey())) {
       return;
     }
     deliver(snapshot);
     if (!notifications.markSentManual(snapshot.notificationId(), workerId)) {
-      log.info("skip complete, notification lease lost");
-      metrics.leaseSkip();
-      return;
+      notifications.markSent(snapshot.idempotencyKey());
     }
     metrics.sent(0);
     log.info("notification sent offset={}", snapshot.offsetLabel());
@@ -168,7 +188,6 @@ public class MailWorker {
                   RetryPolicy.nextAttempt(time.now(), attempt),
                   ex.getMessage());
       if (!leased) {
-        log.info("skip complete, notification lease lost");
         metrics.leaseSkip();
         return;
       }
@@ -182,7 +201,6 @@ public class MailWorker {
                   RetryPolicy.nextAttempt(time.now(), attempt),
                   ex.getMessage());
       if (!leased) {
-        log.info("skip complete, reminder lease lost");
         metrics.leaseSkip();
         return;
       }

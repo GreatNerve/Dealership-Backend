@@ -2,10 +2,6 @@
 
 Vehicle-service **Appointment** booking, **Reminder** delivery, and **email tracking** (Delivery Events: opened / bounce). Modular Spring Boot monolith.
 
-Public host: [https://dealership.greatnerve.com](https://dealership.greatnerve.com)
-
-Staff UI: [https://dship.greatnerve.com/](https://dship.greatnerve.com/)
-
 Production staff login is the seed user **`staff@greatnerve.com` / `password1`**.
 
 Design docs: [github.com/GreatNerve/Dealership-Backend/tree/main/docs](https://github.com/GreatNerve/Dealership-Backend/tree/main/docs). Test inventory: [test-report.md](test-report.md) · [GitHub](https://github.com/GreatNerve/Dealership-Backend/blob/main/test-report.md).

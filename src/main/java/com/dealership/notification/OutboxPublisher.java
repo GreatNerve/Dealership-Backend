@@ -2,6 +2,7 @@ package com.dealership.notification;
 
 import com.dealership.shared.config.AppProperties;
 import com.dealership.shared.config.RabbitConfig;
+import com.dealership.shared.lifecycle.ShutdownGate;
 import com.dealership.shared.metrics.AppMetrics;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ public class OutboxPublisher {
   private final RabbitTemplate rabbit;
   private final AppProperties properties;
   private final AppMetrics metrics;
+  private final ShutdownGate shutdownGate;
   private final String workerId = "outbox-" + UUID.randomUUID();
 
   public OutboxPublisher(
@@ -28,16 +30,21 @@ public class OutboxPublisher {
       NotificationService notifications,
       RabbitTemplate rabbit,
       AppProperties properties,
-      AppMetrics metrics) {
+      AppMetrics metrics,
+      ShutdownGate shutdownGate) {
     this.outbox = outbox;
     this.notifications = notifications;
     this.rabbit = rabbit;
     this.properties = properties;
     this.metrics = metrics;
+    this.shutdownGate = shutdownGate;
   }
 
   @Scheduled(fixedDelayString = "${app.workers.poll-interval}")
   public void drain() {
+    if (!shutdownGate.acceptingClaims()) {
+      return;
+    }
     MDC.put("worker_id", workerId);
     try {
       for (var claimed :

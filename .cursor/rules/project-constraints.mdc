@@ -10,7 +10,7 @@ alwaysApply: true
 - Use glossary terms. Appointment not booking. Reminder vs Notification are different.
 - No Lombok. Record DTOs. Explicit JPA entities. UUID primary keys.
 - Comments in Java: only non-obvious why. See `docs/trd/comments.md`.
-- Reuse, no redundancy, lean diffs: `docs/trd/code-style.md`. One page/access/time/Reminder-SQL/sender/`ApiErrorCode`/`Inputs`/Instant `from`/`to` binder/`StatsBucket`/`DeliveryWebhookAdapter`.
+- Reuse, no redundancy, lean diffs: `docs/trd/code-style.md`. One page/access/time/Reminder-SQL/sender/`ApiErrorCode`/`Inputs`/Instant `from`/`to` binder/`StatsBucket`/`DeliveryWebhookAdapter`/`ShutdownGate`.
 - API docs: springdoc-openapi (Swagger UI), see `docs/trd/openapi.md`. Authorize is OAuth2 password (username = email), not paste-only Bearer. Not springfox.
 - JPA for CRUD. Native SQL / JdbcTemplate for SKIP LOCKED, due-time insert, send-window expire, no-show UPDATE. Do not hydrate full graphs to do clock math.
 - Redis = Bucket4j token bucket HTTP limits only, **per endpoint**, **15 / 60s** (window never longer than 60s). Delivery webhooks are not limited. `X-Forwarded-For` only when the flag is on **and** `RemoteAddr` is a trusted proxy CIDR (empty = Cloudflare). Postgres = ledger (Reminders, one Confirmed per Vehicle when `APP_ONE_CONFIRMED_PER_VEHICLE=true`).

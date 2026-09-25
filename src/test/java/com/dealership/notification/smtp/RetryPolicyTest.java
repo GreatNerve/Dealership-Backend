@@ -31,10 +31,10 @@ class RetryPolicyTest {
   void backoffStaysInsideCap() {
     Instant now = Instant.parse("2026-09-20T00:00:00Z");
     Instant next = RetryPolicy.nextAttempt(now, 1);
-    assertTrue(!next.isBefore(now.plusSeconds(30)));
-    assertTrue(next.isBefore(now.plusSeconds(301)));
-    Instant second = RetryPolicy.nextAttempt(now, 2);
-    assertTrue(!second.isBefore(now.plusSeconds(60)));
+    assertTrue(!next.isBefore(now.plus(RetryPolicy.MIN_DELAY)));
+    assertTrue(next.isBefore(now.plus(RetryPolicy.MAX_DELAY).plusSeconds(1)));
+    Instant later = RetryPolicy.nextAttempt(now, 8);
+    assertTrue(!later.isAfter(now.plus(RetryPolicy.MAX_DELAY)));
     assertEquals(5, RetryPolicy.MAX_ATTEMPTS);
   }
 }

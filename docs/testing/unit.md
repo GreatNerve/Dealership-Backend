@@ -40,7 +40,8 @@ No Spring context. No containers. Public functions and policies only.
 ## Retry / backoff
 
 - Transient vs permanent classification (timeout and SMTP 4xx `421`/`450`/`451`/`452` retry; SMTP auth, `AddressException`, and a 5xx `SendFailedException` do not).
-- Exponential backoff with jitter stays inside min/max.
+- Exponential backoff with jitter stays inside **2 minutes–10 minutes**.
+- Brevo `request` (`X-Mailin-custom` = Notification id) heals an open Notification to `SENT` and marks the Reminder; `unique_opened` does not. `MailWorker` does not call the sender when the provider already accepted (`ProviderAcceptHealTest`).
 - Attempt 5 → dead-letter, no next attempt.
 - JWT secret shorter than 32 bytes is rejected (no zero-pad). Non-`dev`/`test` also rejects the committed default secret. JWT `iat`/`exp` come from `TimeProvider`, not `Instant.now()`.
 - Optimistic lock (`@Version`) maps to `409 CONCURRENT_UPDATE`.

@@ -15,7 +15,7 @@ Reminder = “is it time?” Notification = “did we deliver?” **Email tracki
 ## Rules
 
 - Channel is **EMAIL** in v1. Tracking is provider **Delivery Events**, append-only (`notification_delivery_events`).
-- Worker `Notification.status` stays `PENDING` → `SENT` / `DEAD_LETTER` / `RETRY_SCHEDULED`. An `OPENED` event on a `SENT` row does **not** change that enum. Do not add `opened_at` / `bounced` columns on `notifications`.
+- Worker `Notification.status` stays `PENDING` → `SENT` / `DEAD_LETTER` / `RETRY_SCHEDULED`. An `OPENED` or bounce on a `SENT` row does **not** change that enum. If SMTP already accepted and the process died before `SENT`, Brevo `request` / `sent` / `delivered` heals the open Notification and Reminder to `SENT` so retry does not send again. Do not add `opened_at` / `bounced` columns on `notifications`.
 - Correlation Key = Notification UUID in a provider-mapped SMTP header (Brevo: `X-Mailin-custom`). Schema and JSON never store that header name.
 - Ingest: `POST /webhooks/delivery/{provider}` with `APP_DELIVERY_WEBHOOK_SECRET` (`Authorization` Bearer, Token, or raw secret). Not User JWT. JSON object or array (max 100). Unknown Notification → 204. Duplicate `(notification_id, provider, provider_event_id)` → one row. Unmapped type → 204. Do not log recipient email.
 - Staff reads: `GET /notifications/{id}` timeline **latest `occurredAt` first**. List `opened` / `bounced` = `EXISTS` on events (or timeline `OPENED` / `SOFT_BOUNCE` / `HARD_BOUNCE` / `BLOCKED`). `GET /notifications?appointmentId=` includes `events` so Appointment detail does not need a second round-trip for badges.

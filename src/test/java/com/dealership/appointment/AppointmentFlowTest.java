@@ -1175,6 +1175,14 @@ class AppointmentFlowTest extends AbstractIT {
             UUID.class,
             appointmentId);
 
+    UUID notificationId =
+        jdbc.queryForObject(
+            """
+            SELECT id FROM notifications
+            WHERE appointment_id = ? AND offset_minutes = 1440
+            """,
+            UUID.class,
+            appointmentId);
     // Provider accepted; process died before durable SENT — reopen ledger, same key.
     jdbc.update(
         """
@@ -1188,24 +1196,40 @@ class AppointmentFlowTest extends AbstractIT {
     jdbc.update(
         """
         UPDATE reminders
-        SET status = CAST('PENDING' AS reminder_status),
+        SET status = CAST('PROCESSING' AS reminder_status),
             locked_by = NULL,
-            lease_expires_at = NULL,
+            lease_expires_at = now() - interval '3 minutes',
             next_attempt_at = NULL,
             updated_at = now()
         WHERE id = ?
         """,
         reminderId);
 
+    HttpHeaders hook = new HttpHeaders();
+    hook.set(HttpHeaders.AUTHORIZATION, "Bearer test-webhook-secret");
+    hook.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+    assertEquals(
+        HttpStatus.OK,
+        http.exchange(
+                "/api/v1/webhooks/delivery/brevo",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    """
+{"event":"request","X-Mailin-custom":"%s","message-id":"m-crash","ts_epoch":1700000000}
+"""
+                        .formatted(notificationId),
+                    hook),
+                Void.class)
+            .getStatusCode());
+
     poller.tick();
     publisher.drain();
-    awaitStubSends(appointmentId, 2);
 
     long stubSends =
         stub.recorded().stream()
             .filter(s -> s.appointmentId().equals(appointmentId) && key.equals(s.idempotencyKey()))
             .count();
-    assertTrue(stubSends >= 2, "at-least-once may hit the stub twice after a crash window");
+    assertEquals(1, stubSends, "webhook accept must not send again");
     assertEquals(
         Integer.valueOf(1),
         jdbc.queryForObject(

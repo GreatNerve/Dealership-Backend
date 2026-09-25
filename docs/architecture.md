@@ -6,7 +6,7 @@ Normative details: [prd/](prd/README.md), [trd/](trd/README.md), [decision/](dec
 
 **One Spring Boot JVM** on EC2. PostgreSQL, RabbitMQ, and Redis are the other processes. The Reminder poller, Manual retry poller, **OutboxPublisher** (AMQP publish), and **MailWorker** (AMQP consume, 2–8 threads) are **roles in that JVM**, not extra OS processes. Do not draw them as three app boxes.
 
-PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule (and Manual Notifications). `ReminderScheduler` claims due Reminders and inserts Notification + **Outbox Event** (no AMQP in that transaction). `OutboxPublisher` SKIP LOCKED-drains outbox and `convertAndSend`s to RabbitMQ. `MailWorker` `@RabbitListener`s (prefetch 1) and sends. A **webhook** appends Delivery Events. Redis is HTTP rate limit only.
+PostgreSQL is the ledger and the 24h/2h clock. The **controller** writes the Appointment and Reminder schedule (and Manual Notifications). `ReminderScheduler` claims due Reminders and inserts Notification + **Outbox Event** (no AMQP in that transaction). `OutboxPublisher` SKIP LOCKED-drains outbox and `convertAndSend`s to RabbitMQ. `MailWorker` `@RabbitListener`s (prefetch 1) and sends. A **webhook** appends Delivery Events. Redis is HTTP rate limit only. On graceful shutdown, `ShutdownGate` stops new claim polls first; Tomcat drains in-flight HTTP (`server.shutdown=graceful`); unfinished work is lease-reclaimed after restart — the queue is not fully drained before exit.
 
 ```mermaid
 flowchart TB
@@ -192,7 +192,7 @@ SYSTEM: appointmentId + ":" + offsetMinutes + ":" + scheduleVersion
 MANUAL: appointmentId + ":MANUAL:" + notificationId
 ```
 
-UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. After `NotificationSender.send` returns OK, persist transport-accepted; reclaim heals to `SENT` and must not call the sender again. SMTP also sets the Correlation Key (`notifications.id`) and a stable Message-ID from the key. Why: [decision/at-least-once-idempotency.md](decision/at-least-once-idempotency.md).
+UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. Retry waits **2–10 minutes**. A Brevo webhook `request` / `sent` / `delivered` (Correlation Key = `notifications.id`) heals an open Notification and Reminder to `SENT` so a crash after accept does not send again. Why: [decision/at-least-once-idempotency.md](decision/at-least-once-idempotency.md).
 
 ## 5. Manual send
 

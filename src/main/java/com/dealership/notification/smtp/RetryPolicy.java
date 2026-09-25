@@ -7,6 +7,9 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class RetryPolicy {
 
   public static final int MAX_ATTEMPTS = 5;
+  // Floor waits for a Brevo webhook (correlation header) before another SMTP attempt.
+  public static final Duration MIN_DELAY = Duration.ofMinutes(2);
+  public static final Duration MAX_DELAY = Duration.ofMinutes(10);
 
   private RetryPolicy() {}
 
@@ -19,11 +22,11 @@ public final class RetryPolicy {
   }
 
   public static Instant nextAttempt(Instant now, int attemptNumber) {
-    // 30s, 60s, 120s, 240s + jitter; cap 5 minutes.
+    // 2m, 4m, 8m + jitter; cap 10 minutes.
     int n = Math.max(1, attemptNumber);
-    long baseSeconds = 30L * (1L << Math.min(n - 1, 3));
+    long baseSeconds = MIN_DELAY.toSeconds() * (1L << Math.min(n - 1, 3));
     long jitter = ThreadLocalRandom.current().nextLong(0, Math.max(1, baseSeconds / 5 + 1));
-    long capped = Math.min(300, baseSeconds + jitter);
+    long capped = Math.min(MAX_DELAY.toSeconds(), baseSeconds + jitter);
     return now.plus(Duration.ofSeconds(capped));
   }
 }

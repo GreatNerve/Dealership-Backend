@@ -13,7 +13,7 @@ Notification idempotency key unique:
 
 `outbox_event_type`: `REMINDER_DUE` (system claim) and `MANUAL_NOTIFICATION` (staff compose). Same publisher and `MailWorker`.
 
-Transient (timeout, SMTP 4xx including `421`/`450`/`451`/`452` provider rate limit) → `RETRY_SCHEDULED`, exponential backoff + jitter (30s, 60s, 2 min, 4 min, cap 5 minutes), max 5 attempts. **System** retries when the Reminder poller re-claims (`next_attempt_at`). **Manual** retries when `NotificationScheduler` claims due Manual rows (`RETRY_SCHEDULED` / expired `PROCESSING` lease, SKIP LOCKED) and writes a new `MANUAL_NOTIFICATION` outbox with live `attempts` on the snapshot. SMTP auth, invalid contact (`AddressException` / `MailParseException`), and a 5xx `SendFailedException` → `DEAD_LETTER` immediately (no SMTP retries).
+Transient (timeout, SMTP 4xx including `421`/`450`/`451`/`452` provider rate limit) → `RETRY_SCHEDULED`, exponential backoff + jitter (2 min, 4 min, 8 min, cap 10 minutes), max 5 attempts. Expired `PROCESSING` is not reclaimed until the lease has been dead for that same 2 minute floor (webhook window). **System** retries when the Reminder poller re-claims (`next_attempt_at`). **Manual** retries when `NotificationScheduler` claims due Manual rows (`RETRY_SCHEDULED` / expired `PROCESSING` lease, SKIP LOCKED) and writes a new `MANUAL_NOTIFICATION` outbox with live `attempts` on the snapshot. SMTP auth, invalid contact (`AddressException` / `MailParseException`), and a 5xx `SendFailedException` → `DEAD_LETTER` immediately (no SMTP retries).
 
 | Method | Path | Notes |
 | --- | --- | --- |

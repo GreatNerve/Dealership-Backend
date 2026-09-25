@@ -1,5 +1,6 @@
 package com.dealership.notification;
 
+import com.dealership.notification.smtp.RetryPolicy;
 import com.dealership.reminder.ReminderRepository;
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -36,6 +37,9 @@ public class NotificationLeaseRepository {
               CAST(:processing AS notification_status))
             AND (n.next_attempt_at IS NULL OR n.next_attempt_at <= now())
             AND (n.lease_expires_at IS NULL OR n.lease_expires_at < now())
+            AND (
+              n.status <> CAST(:processing AS notification_status)
+              OR n.lease_expires_at < now() - CAST(:reclaimAfter AS interval))
           ORDER BY n.next_attempt_at NULLS FIRST, n.created_at
           FOR UPDATE SKIP LOCKED
           LIMIT :batch
@@ -45,6 +49,7 @@ public class NotificationLeaseRepository {
         new MapSqlParameterSource()
             .addValue("worker", workerId)
             .addValue("lease", toPgInterval(lease))
+            .addValue("reclaimAfter", toPgInterval(RetryPolicy.MIN_DELAY))
             .addValue("batch", batch)
             .addValue("processing", NotificationStatus.PROCESSING.name())
             .addValue("retry", NotificationStatus.RETRY_SCHEDULED.name())
@@ -58,6 +63,34 @@ public class NotificationLeaseRepository {
                 rs.getString("subject"),
                 rs.getString("body"),
                 rs.getInt("attempts")));
+  }
+
+  public boolean deferUntilProviderProof(UUID notificationId) {
+    int updated =
+        jdbc.update(
+            """
+UPDATE notifications
+SET status = CAST(:retry AS notification_status),
+    next_attempt_at = COALESCE(lease_expires_at, now()) + CAST(:reclaimAfter AS interval),
+    locked_by = NULL,
+    lease_expires_at = NULL,
+    updated_at = now()
+WHERE id = :id
+  AND generation = CAST(:manual AS notification_generation)
+  AND status = CAST(:processing AS notification_status)
+  AND locked_by LIKE :mailLock
+  AND (
+    lease_expires_at IS NULL
+    OR lease_expires_at >= now() - CAST(:reclaimAfter AS interval))
+""",
+            new MapSqlParameterSource()
+                .addValue("id", notificationId)
+                .addValue("retry", NotificationStatus.RETRY_SCHEDULED.name())
+                .addValue("processing", NotificationStatus.PROCESSING.name())
+                .addValue("manual", NotificationGeneration.MANUAL.name())
+                .addValue("reclaimAfter", toPgInterval(RetryPolicy.MIN_DELAY))
+                .addValue("mailLock", ReminderRepository.MAIL_WORKER_PREFIX + "%"));
+    return updated == 1;
   }
 
   public boolean heartbeat(UUID notificationId, String workerId, Duration lease) {
@@ -79,9 +112,10 @@ public class NotificationLeaseRepository {
                 OR locked_by IS NULL
                 OR locked_by NOT LIKE :mailLock
                 OR lease_expires_at IS NULL
-                OR lease_expires_at < now())
+                OR lease_expires_at < now() - CAST(:reclaimAfter AS interval))
             """,
             params(notificationId, workerId, lease)
+                .addValue("reclaimAfter", toPgInterval(RetryPolicy.MIN_DELAY))
                 .addValue("pending", NotificationStatus.PENDING.name()));
     return updated == 1;
   }

@@ -33,7 +33,7 @@ Documented now. Created when implementing. Do not invent a second layout.
     architecture-diagram-prompt.json
     adr/
   src/main/java/com/dealership/
-    shared/                          # page, errors, access 404, time format, lease
+    shared/                          # page, errors, access 404, time format, lease, ShutdownGate
     identity/
     dealership/
     customer/
