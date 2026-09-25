@@ -39,7 +39,7 @@ No Spring context. No containers. Public functions and policies only.
 
 ## Retry / backoff
 
-- Transient vs permanent classification (timeout retry; SMTP auth and `AddressException` / invalid contact do not).
+- Transient vs permanent classification (timeout and SMTP 4xx `421`/`450`/`451`/`452` retry; SMTP auth, `AddressException`, and a 5xx `SendFailedException` do not).
 - Exponential backoff with jitter stays inside min/max.
 - Attempt 5 → dead-letter, no next attempt.
 - JWT secret shorter than 32 bytes is rejected (no zero-pad). Non-`dev`/`test` also rejects the committed default secret. JWT `iat`/`exp` come from `TimeProvider`, not `Instant.now()`.

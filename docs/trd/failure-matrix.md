@@ -10,8 +10,8 @@
 | Worker crash after claim | Reclaim after lease expiry (Reminders, outbox `PROCESSING`, Manual Notifications) |
 | Publish crash after outbox write | Outbox publisher retries; expired `PROCESSING` lease is claimable again |
 | Duplicate broker message | Idempotent consumer |
-| SMTP timeout / 5xx | Retry same notification key (max 5) |
-| SMTP auth / invalid contact (`AddressException`, `SendFailedException`) | DEAD_LETTER immediately |
+| SMTP timeout / 4xx (`421`, `450`, `451`, `452`, including provider rate limit) | Retry same notification key (max 5) |
+| SMTP auth / invalid contact (`AddressException`, `MailParseException`, `SendFailedException` with no reply or a 5xx reply) | DEAD_LETTER immediately |
 | Completing after lease lost | `markSent` / `markDead` / `markRetry` no-op if not live `PROCESSING` |
 | Max attempts | DEAD_LETTER, metric |
 | Cancel vs send race | Documented; possible one extra send |

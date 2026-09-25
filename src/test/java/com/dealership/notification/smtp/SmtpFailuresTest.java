@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import jakarta.mail.SendFailedException;
 import jakarta.mail.internet.AddressException;
 import java.util.Map;
+import org.eclipse.angus.mail.smtp.SMTPSendFailedException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailSendException;
@@ -22,5 +23,19 @@ class SmtpFailuresTest {
     MailSendException send =
         new MailSendException(Map.of("bad@x", new SendFailedException("invalid")));
     assertTrue(SmtpFailures.invalidContact(send));
+  }
+
+  @Test
+  void smtp4xxIsRetryNotInvalidContact() {
+    assertFalse(SmtpFailures.invalidContact(reply(421)));
+    assertFalse(SmtpFailures.invalidContact(reply(450)));
+    assertFalse(SmtpFailures.invalidContact(reply(451)));
+    assertFalse(SmtpFailures.invalidContact(reply(452)));
+    assertFalse(SmtpFailures.invalidContact(new MailSendException(Map.of("a@x", reply(450)))));
+    assertTrue(SmtpFailures.invalidContact(reply(550)));
+  }
+
+  private static SMTPSendFailedException reply(int code) {
+    return new SMTPSendFailedException("DATA", code, code + " reply", null, null, null, null);
   }
 }

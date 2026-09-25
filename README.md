@@ -33,7 +33,7 @@ Worker goes down, recovers at T−22h or T−20h → send 24h. Recovers at T−1
 
 ## Run locally
 
-Windows PostgreSQL on `5432` must be stopped. Then:
+Docker Desktop must be running. `make test` and `./mvnw test` start Postgres, RabbitMQ, and Redis with Testcontainers; without Docker those tests fail before any assertion (`Could not find a valid Docker environment`). The git pre-commit hook runs the same tests when `src/` or `pom.xml` changes. Windows PostgreSQL on `5432` must be stopped. Then:
 
 ```bash
 cp .env.example .env
