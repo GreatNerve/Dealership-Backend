@@ -1,6 +1,7 @@
 package com.dealership.reminder;
 
 import com.dealership.notification.NotificationService;
+import com.dealership.notification.smtp.RetryPolicy;
 import com.dealership.shared.config.AppProperties;
 import com.dealership.shared.metrics.AppMetrics;
 import java.util.ArrayList;
@@ -58,7 +59,10 @@ public class ReminderService {
     reminders.expireNoShows(properties.getReminders().getNoShowGrace());
     var claimed =
         reminders.claimDue(
-            workerId, properties.getWorkers().getLease(), properties.getWorkers().getClaimBatch());
+            workerId,
+            properties.getWorkers().getLease(),
+            RetryPolicy.MIN_DELAY,
+            properties.getWorkers().getClaimBatch());
     if (claimed.isEmpty()) {
       return;
     }

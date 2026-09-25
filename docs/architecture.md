@@ -192,7 +192,7 @@ SYSTEM: appointmentId + ":" + offsetMinutes + ":" + scheduleVersion
 MANUAL: appointmentId + ":MANUAL:" + notificationId
 ```
 
-UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. After `NotificationSender.send` returns OK, persist transport-accepted; reclaim heals to `SENT` and must not call the sender again. SMTP also sets the Correlation Key (`notifications.id`) and a stable Message-ID from the key. Why: [decision/at-least-once-idempotency.md](decision/at-least-once-idempotency.md).
+UNIQUE on `notifications.idempotency_key`. File log, stub, and SMTP all receive that key. Retry waits **2–10 minutes**. A Brevo webhook `request` / `sent` / `delivered` (Correlation Key = `notifications.id`) heals an open Notification and Reminder to `SENT` so a crash after accept does not send again. Why: [decision/at-least-once-idempotency.md](decision/at-least-once-idempotency.md).
 
 ## 5. Manual send
 

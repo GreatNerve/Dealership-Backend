@@ -368,7 +368,45 @@ public class NotificationService {
       events.saveAll(rows);
       metrics.deliveryEventsIngested(rows.size());
     }
+    healIfProviderAccepted(batch, known);
     return true;
+  }
+
+  // Brevo request/sent/delivered means SMTP already accepted. Crash before SENT must not resend.
+  private void healIfProviderAccepted(List<DeliveryWebhookAdapter.Ingest> batch, Set<UUID> known) {
+    Set<UUID> proved = new HashSet<>();
+    for (var ingest : batch) {
+      if (known.contains(ingest.notificationId()) && provesSent(ingest.type())) {
+        proved.add(ingest.notificationId());
+      }
+    }
+    if (proved.isEmpty()) {
+      return;
+    }
+    List<UUID> reminderIds = new ArrayList<>();
+    for (NotificationEntity row : notifications.findAllById(proved)) {
+      if (row.getStatus() == NotificationStatus.PENDING
+          || row.getStatus() == NotificationStatus.PROCESSING
+          || row.getStatus() == NotificationStatus.RETRY_SCHEDULED) {
+        row.markSent();
+        if (row.getReminderId() != null) {
+          reminderIds.add(row.getReminderId());
+        }
+      }
+    }
+    reminders.markSentFromProvider(reminderIds);
+  }
+
+  public boolean providerAlreadyAccepted(UUID notificationId) {
+    if (notificationId == null) {
+      return false;
+    }
+    return events.existsByNotificationIdAndEventTypeIn(
+        notificationId, List.of(DeliveryEventType.ACCEPTED, DeliveryEventType.DELIVERED));
+  }
+
+  private static boolean provesSent(DeliveryEventType type) {
+    return type == DeliveryEventType.ACCEPTED || type == DeliveryEventType.DELIVERED;
   }
 
   @Transactional(readOnly = true)
@@ -378,6 +416,10 @@ public class NotificationService {
 
   public boolean heartbeatManual(UUID notificationId, String workerId, Duration lease) {
     return leases.heartbeat(notificationId, workerId, lease);
+  }
+
+  public boolean deferManualUntilProviderProof(UUID notificationId) {
+    return leases.deferUntilProviderProof(notificationId);
   }
 
   public boolean markSentManual(UUID notificationId, String workerId) {

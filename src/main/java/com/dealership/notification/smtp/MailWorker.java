@@ -112,8 +112,15 @@ public class MailWorker {
       return;
     }
     if (!reminders.heartbeat(snapshot.reminderId(), workerId, properties.getWorkers().getLease())) {
-      log.info("skip send, reminder not processing");
+      reminders.deferUntilProviderProof(snapshot.reminderId());
+      log.info("skip send, waiting for provider webhook");
       metrics.leaseSkip();
+      return;
+    }
+    if (notifications.providerAlreadyAccepted(snapshot.notificationId())) {
+      reminders.markSent(snapshot.reminderId(), workerId);
+      notifications.markSent(snapshot.idempotencyKey());
+      log.info("skip send, provider already accepted");
       return;
     }
     deliver(snapshot);
@@ -133,8 +140,14 @@ public class MailWorker {
     }
     if (!notifications.heartbeatManual(
         snapshot.notificationId(), workerId, properties.getWorkers().getLease())) {
-      log.info("skip send, notification lease lost");
+      notifications.deferManualUntilProviderProof(snapshot.notificationId());
+      log.info("skip send, waiting for provider webhook");
       metrics.leaseSkip();
+      return;
+    }
+    if (notifications.providerAlreadyAccepted(snapshot.notificationId())) {
+      notifications.markSentManual(snapshot.notificationId(), workerId);
+      log.info("skip send, provider already accepted");
       return;
     }
     deliver(snapshot);

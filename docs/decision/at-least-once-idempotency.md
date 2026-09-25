@@ -14,8 +14,8 @@ Database commit and SMTP cannot be one transaction. Split the guarantees:
 Mechanism (implement when asked):
 
 1. Stable key: System `appointmentId:offsetMinutes:scheduleVersion`; Manual `appointmentId:MANUAL:notificationId`. UNIQUE on `notifications.idempotency_key`.
-2. After `NotificationSender.send` returns OK, persist **transport accepted** on that Notification (same key) in a short DB transaction **before** relying on crash recovery.
-3. On reclaim / redelivery: if transport already accepted (or status already `SENT`) → **heal** Reminder/Notification to `SENT` only — **do not** call the sender again.
+2. Retry backoff is **2–10 minutes**. Expired `PROCESSING` is not reclaimed until the lease has been dead for 2 minutes, so a Brevo webhook can arrive first.
+3. Webhook `ACCEPTED` / `DELIVERED` (Brevo `request`, `sent`, `delivered`, Correlation Key = Notification id) heals an open Notification and its Reminder to `SENT`. Reclaim and `MailWorker` must not call the sender again.
 4. Transient SMTP failures (timeout, 4xx) still retry (those never accepted). Permanent failures → `DEAD_LETTER`.
 5. SMTP also sets Correlation Key / stable `Message-ID` from the key so a provider-side race during the round-trip does not create a second inbox message when possible.
 

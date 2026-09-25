@@ -3,6 +3,7 @@ package com.dealership.reminder;
 import com.dealership.appointment.AppointmentStatus;
 import com.dealership.notification.NotificationGeneration;
 import com.dealership.notification.NotificationStatus;
+import com.dealership.notification.smtp.RetryPolicy;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
@@ -152,7 +153,12 @@ public class ReminderRepository {
         """
         UPDATE reminders r
         SET status = CAST(:expired AS reminder_status), updated_at = now()
-        WHERE r.status IN (CAST(:pending AS reminder_status), CAST(:retry AS reminder_status))
+        WHERE (
+            r.status IN (CAST(:pending AS reminder_status), CAST(:retry AS reminder_status))
+            OR (
+              r.status = CAST(:processing AS reminder_status)
+              AND (r.lease_expires_at IS NULL OR r.lease_expires_at < now()))
+          )
           AND EXISTS (
             SELECT 1 FROM appointments a
             WHERE a.id = r.appointment_id
@@ -166,6 +172,7 @@ public class ReminderRepository {
             .addValue("expired", ReminderStatus.EXPIRED.name())
             .addValue("pending", ReminderStatus.PENDING.name())
             .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
+            .addValue("processing", ReminderStatus.PROCESSING.name())
             .addValue("confirmed", AppointmentStatus.CONFIRMED.name()));
   }
 
@@ -203,7 +210,8 @@ public class ReminderRepository {
   // notify false is still due work; MailWorker appends logs/ instead of SMTP
   // batch from CPUs (floor 18 = 500k/day × 2 offsets on a 500ms poll); cap 50 so
   // no findAll
-  public List<ClaimedReminder> claimDue(String workerId, Duration lease, int batch) {
+  public List<ClaimedReminder> claimDue(
+      String workerId, Duration lease, Duration reclaimAfter, int batch) {
     return jdbc.query(
         """
         UPDATE reminders
@@ -224,6 +232,9 @@ public class ReminderRepository {
             AND r.scheduled_at <= now()
             AND (r.next_attempt_at IS NULL OR r.next_attempt_at <= now())
             AND (r.lease_expires_at IS NULL OR r.lease_expires_at < now())
+            AND (
+              r.status <> CAST(:processing AS reminder_status)
+              OR r.lease_expires_at < now() - CAST(:reclaimAfter AS interval))
         """
             + and(BEFORE_MIDPOINT)
             + """
@@ -236,6 +247,7 @@ public class ReminderRepository {
         new MapSqlParameterSource()
             .addValue("worker", workerId)
             .addValue("lease", toPgInterval(lease))
+            .addValue("reclaimAfter", toPgInterval(reclaimAfter))
             .addValue("batch", batch)
             .addValue("processing", ReminderStatus.PROCESSING.name())
             .addValue("pending", ReminderStatus.PENDING.name())
@@ -380,8 +392,8 @@ public class ReminderRepository {
   }
 
   public boolean heartbeat(UUID reminderId, String workerId, Duration lease) {
-    // Poller/replay hold PROCESSING until SMTP starts; a live mail-* owner blocks a
-    // second send.
+    // Poller/replay locks hand off immediately. A dead mail-* lease waits MIN_DELAY
+    // so a Brevo accept webhook can mark SENT before another worker sends.
     int updated =
         jdbc.update(
             """
@@ -395,14 +407,66 @@ public class ReminderRepository {
                 OR locked_by IS NULL
                 OR locked_by NOT LIKE :mailLock
                 OR lease_expires_at IS NULL
-                OR lease_expires_at < now())
+                OR lease_expires_at < now() - CAST(:reclaimAfter AS interval))
             """,
             new MapSqlParameterSource()
                 .addValue("id", reminderId)
                 .addValue("worker", workerId)
                 .addValue("lease", toPgInterval(lease))
+                .addValue("reclaimAfter", toPgInterval(RetryPolicy.MIN_DELAY))
                 .addValue("mailLock", MAIL_WORKER_PREFIX + "%")
                 .addValue("processing", ReminderStatus.PROCESSING.name()));
+    return updated == 1;
+  }
+
+  public int markSentFromProvider(Collection<UUID> reminderIds) {
+    if (reminderIds == null || reminderIds.isEmpty()) {
+      return 0;
+    }
+    return jdbc.update(
+        """
+        UPDATE reminders
+        SET status = CAST(:sent AS reminder_status), locked_by = NULL, lease_expires_at = NULL,
+            updated_at = now()
+        WHERE id IN (:ids)
+          AND status IN (
+            CAST(:pending AS reminder_status),
+            CAST(:processing AS reminder_status),
+            CAST(:retry AS reminder_status),
+            CAST(:expired AS reminder_status))
+        """,
+        new MapSqlParameterSource()
+            .addValue("ids", reminderIds)
+            .addValue("sent", ReminderStatus.SENT.name())
+            .addValue("pending", ReminderStatus.PENDING.name())
+            .addValue("processing", ReminderStatus.PROCESSING.name())
+            .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
+            .addValue("expired", ReminderStatus.EXPIRED.name()));
+  }
+
+  public boolean deferUntilProviderProof(UUID reminderId) {
+    int updated =
+        jdbc.update(
+            """
+UPDATE reminders
+SET status = CAST(:retry AS reminder_status),
+    next_attempt_at = COALESCE(lease_expires_at, now()) + CAST(:reclaimAfter AS interval),
+    locked_by = NULL,
+    lease_expires_at = NULL,
+    updated_at = now()
+WHERE id = :id
+  AND status = CAST(:processing AS reminder_status)
+  AND locked_by LIKE :mailLock
+  AND (
+    lease_expires_at IS NULL
+    OR lease_expires_at >= now() - CAST(:reclaimAfter AS interval))
+""",
+            new MapSqlParameterSource()
+                .addValue("id", reminderId)
+                .addValue("retry", ReminderStatus.RETRY_SCHEDULED.name())
+                .addValue("processing", ReminderStatus.PROCESSING.name())
+                .addValue("reclaimAfter", toPgInterval(RetryPolicy.MIN_DELAY))
+                .addValue("mailLock", MAIL_WORKER_PREFIX + "%"));
     return updated == 1;
   }
 

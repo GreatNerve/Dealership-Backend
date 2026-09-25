@@ -8,7 +8,7 @@ Default sender is the **stub** (assignment-safe). A flag switches the same `Noti
 
 Before send (System): re-check the Appointment is still valid (Confirmed, not cancelled, still inside the send window). Then send, then persist SENT. Transient failure → retry. Exhausted retries → DEAD_LETTER.
 
-**Delivery Events** are append-only. Webhook ingest (`POST /webhooks/delivery/{provider}`, Bearer `APP_DELIVERY_WEBHOOK_SECRET`) maps provider payloads to a generic enum (JSON array max 100, one transaction). Opens and bounces **do not** mutate worker `Notification.status`. List/stats derive opened/bounced with `EXISTS`; daily bounce/open slices use the first event in range so they sum to the distinct total. No snapshot columns on `notifications`.
+**Delivery Events** are append-only. Webhook ingest (`POST /webhooks/delivery/{provider}`, Bearer `APP_DELIVERY_WEBHOOK_SECRET`) maps provider payloads to a generic enum (JSON array max 100, one transaction). Opens and bounces **do not** mutate worker `Notification.status`. `ACCEPTED` / `DELIVERED` heal an open row to `SENT` when the process died after Brevo accepted. List/stats derive opened/bounced with `EXISTS`; daily bounce/open slices use the first event in range so they sum to the distinct total. No snapshot columns on `notifications`.
 
 Mock Appointments (`notify: false`) append `logs/notifications.log` and store Notification `SENT` on the **System** due path (same idempotency key). **Manual** send uses Notification Mode. **Replay** of dead letters reuses that identity.
 

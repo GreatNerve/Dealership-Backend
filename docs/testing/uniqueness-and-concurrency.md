@@ -8,7 +8,7 @@ Proof is not a comment. Proof is:
 2. Unique notification idempotency key (System and Manual shapes).
 3. Unique `(notification_id, provider, provider_event_id)` on Delivery Events.
 4. **Two workers, one send** for that Reminder Offset (`concurrentClaimsSendOnce`).
-5. Crash after provider accept / before durable `SENT` → retry **same key**, still **one** Notification row (`crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`).
+5. Crash after provider accept / before durable `SENT` → Brevo webhook heals to `SENT`; stub called **once** (`crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`).
 
 ## Concurrent workers
 
@@ -28,7 +28,7 @@ Proof is not a comment. Proof is:
 
 - Crash after claim, before send → lease expires (heartbeat stopped), second worker sends **once**.
 - Slow SMTP with heartbeat still running → second worker must **not** send.
-- Crash after stub/SMTP success, before DB `SENT` → retry uses the **same** idempotency key; stub **may** be called again (at-least-once to the provider). Assert **one** Notification row for that key (no second Reminder Offset, no new key). Proven by `AppointmentFlowTest.crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`.
+- Crash after stub/SMTP success, before DB `SENT` → Brevo webhook `request` with `X-Mailin-custom` = Notification id heals to `SENT`. Retry does **not** call the sender again. Assert **one** Notification row and **one** stub send. Proven by `AppointmentFlowTest.crashAfterProviderAcceptBeforeSentRetriesSameKeyOnly`.
 
 ## What “same Reminder twice” means
 
