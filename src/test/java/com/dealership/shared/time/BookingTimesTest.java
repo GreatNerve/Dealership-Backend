@@ -44,6 +44,14 @@ class BookingTimesTest {
   }
 
   @Test
+  void offsetInZoneIsShopWallClockNotPayloadZ() {
+    Instant utc = Instant.parse("2026-09-29T04:30:00Z");
+    assertEquals(ZoneOffset.of("+05:30"), BookingTimes.offsetInZone(utc, "Asia/Kolkata"));
+    assertEquals("4:30 AM", BookingTimes.formatMailClock(utc, "Z"));
+    assertEquals("10:00 AM", BookingTimes.formatMailClock(utc, "+05:30"));
+  }
+
+  @Test
   void mailClockIsLocalWithoutUtcLabel() {
     Instant utc = Instant.parse("2026-09-22T16:30:00Z");
     assertEquals("10:00 PM", BookingTimes.formatMailClock(utc, "+05:30"));

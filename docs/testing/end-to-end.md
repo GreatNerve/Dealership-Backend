@@ -14,10 +14,10 @@ Drive through **HTTP** (`/api/v1`), then assert stub recorder **and** database. 
 1. Register/login (or `dev` test token).
 2. Create Dealership or use seed; create Vehicle.
 3. `POST /appointments` with `Idempotency-Key`, `scheduledAt` far enough for both windows (or due-work setup below).
-4. Response 201. Database: one Appointment (`scheduled_at` UTC, `display_offset` from `scheduledAt`), one Reminder per configured offset (default two). JSON: `scheduledAt` UTC + `displayOffset`.
+4. Response 201. Database: one Appointment (`scheduled_at` UTC, `display_offset` from Dealership Timezone at that Instant), one Reminder per configured offset (default two). JSON: `scheduledAt` UTC + `displayOffset`.
 5. Force due (clock or `scheduled_at` already due while Appointment still in the future).
 6. ReminderScheduler + MailWorker run.
-7. Stub invoked **once per Reminder Offset**. Payload Local Wall Time with **Booking Offset** (e.g. `UTC+05:30`), not UTC-only and not the host zone. Notification rows `SENT`. Reminder rows `SENT`.
+7. Stub invoked **once per Reminder Offset**. Payload Local Wall Time with **Booking Offset** from Dealership Timezone at that Instant (e.g. `UTC-04:00` for an `America/New_York` shop), not the `Z` slot Instant and not the host zone. Notification rows `SENT`. Reminder rows `SENT`.
 8. Logs contain appointment/reminder/notification ids, not raw contact.
 
 Customer GET: `scheduledAtLocal` from Booking Offset. Staff GET: `scheduledAtLocal` in Dealership Timezone.

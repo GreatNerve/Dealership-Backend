@@ -11,7 +11,7 @@ Workers may run on EC2 in `us-east-1` while the Customer booked `22:00+05:30` (I
 | Column | Meaning |
 | --- | --- |
 | `scheduled_at` (`timestamptz`) | UTC Instant. Reminder offsets, send window, no-show, leases. |
-| `appointments.display_offset` | ISO-8601 offset taken from `scheduledAt` (`+05:30`). Mail and Customer GET. |
+| `appointments.display_offset` | ISO-8601 offset of **Dealership Timezone** at `scheduled_at` (`+05:30`). Mail and Customer GET. Slot JSON is often `Z`; do not store that. |
 | `dealerships.timezone` | IANA id on the shop. Staff GET, **Service Slot** grid, weekly hours, **Capacity Overrides**, Max Advance Days. Not a Customer field. |
 
 No `customers.timezone`. No timezone on register or on Appointment create besides what is already inside `scheduledAt`.
@@ -24,7 +24,7 @@ JVM and Postgres: UTC. Naive datetime (no offset) → `400`.
 { "scheduledAt": "2026-09-22T22:00:00+05:30" }
 ```
 
-Parse offset, convert to Instant. Store `2026-09-22T16:30:00Z` and `display_offset = +05:30`. Reschedule: take Instant and offset from the new `scheduledAt`. The Instant must be a **Service Slot** start when converted to **Dealership Timezone** (`APP_SLOT_DURATION`, default 30 minutes; seconds and nanos 0). Customer create/reschedule also require that local wall time to fall in weekly hours (open inclusive, close exclusive) and on or before the last local day of `APP_MAX_ADVANCE_DAYS` (default 15): last start Instant is strictly before `today.plusDays(N+1)` at start of day in the shop zone.
+Parse offset, convert to Instant. Store `2026-09-22T16:30:00Z` and `display_offset` from **Dealership Timezone** at that Instant (`+05:30` for `Asia/Kolkata`). A `Z` Service Slot start is the same Instant — mail must still show shop wall clock, not 4:30 AM UTC. Reschedule: new Instant + shop offset at that Instant. The Instant must be a **Service Slot** start when converted to **Dealership Timezone** (`APP_SLOT_DURATION`, default 30 minutes; seconds and nanos 0). Customer create/reschedule also require that local wall time to fall in weekly hours (open inclusive, close exclusive) and on or before the last local day of `APP_MAX_ADVANCE_DAYS` (default 15): last start Instant is strictly before `today.plusDays(N+1)` at start of day in the shop zone.
 
 JSON must be valid: no trailing comma (`{ "scheduledAt": "..." }` not `{ "scheduledAt": "...", }`). Trailing comma → `400 MALFORMED_REQUEST`.
 

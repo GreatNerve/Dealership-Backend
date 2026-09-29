@@ -159,6 +159,34 @@ class AppointmentFlowTest extends AbstractIT {
   }
 
   @Test
+  void utcZScheduledAtStoresDealershipOffset() {
+    String staffToken =
+        registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
+    UUID dealershipId = createDealership(staffToken);
+    String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
+    UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
+    Instant when = futureVisit().toInstant();
+    HttpHeaders headers = bearer(customerToken);
+    headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
+    ResponseEntity<AppointmentDtos.AppointmentResponse> created =
+        http.exchange(
+            "/api/v1/appointments",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                """
+                {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":false}
+                """
+                    .formatted(vehicleId, dealershipId, when),
+                headers),
+            AppointmentDtos.AppointmentResponse.class);
+    assertEquals(HttpStatus.CREATED, created.getStatusCode());
+    AppointmentDtos.AppointmentResponse appointment = created.getBody();
+    assertEquals("+05:30", appointment.displayOffset());
+    assertTrue(appointment.scheduledAtLocal().contains("+05:30"));
+    assertFalse(appointment.scheduledAtLocal().endsWith("Z"));
+  }
+
+  @Test
   void staffReadsRemindersNotScheduledUntilDue() {
     String staffToken =
         registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);

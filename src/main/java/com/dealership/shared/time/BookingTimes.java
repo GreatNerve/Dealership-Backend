@@ -39,6 +39,10 @@ public final class BookingTimes {
     }
   }
 
+  public static ZoneOffset offsetInZone(Instant utc, String ianaZone) {
+    return utc.atZone(ZoneId.of(ianaZone)).getOffset();
+  }
+
   public static ZoneOffset parseStoredOffset(String displayOffset) {
     try {
       return ZoneOffset.of(displayOffset);

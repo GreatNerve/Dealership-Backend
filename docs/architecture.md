@@ -105,7 +105,7 @@ Expired `idempotency_keys` (`expires_at < now()`) are deleted at UTC midnight (`
 
 Outbox rows are **not** written here. Reminders sit in Postgres until they are due. See Due work.
 
-Customer path uses `vehicleId + dealershipId + scheduledAt`. Staff path uses `customerId + vehicleId + scheduledAt` and **home Dealership** from `dealership_staff`. Other Venue is Customer self-book. Take **Booking Offset** from `scheduledAt`; mail uses that. Staff GET formats in **Dealership Timezone**. JVM is UTC so EC2 us-east does not affect India bookings. See [trd/time.md](trd/time.md).
+Customer path uses `vehicleId + dealershipId + scheduledAt`. Staff path uses `customerId + vehicleId + scheduledAt` and **home Dealership** from `dealership_staff`. Other Venue is Customer self-book. Take **Booking Offset** from **Dealership Timezone** at that Instant (slot JSON is often `Z`); mail uses that. Staff GET formats in **Dealership Timezone**. JVM is UTC so EC2 us-east does not affect India bookings. See [trd/time.md](trd/time.md).
 
 Staff mail status: `GET /appointments/{id}/reminders` (home Dealership) returns **all Schedule Versions**. Reminder rows exist from create. Each item: `scheduleVersion`, `offsetMinutes`, `dueAt` (UTC Instant when that mail should send). Client formats with Dealership Timezone and groups the list as **this visit** then **previous booking** (no version numbers in the UI). Nested `notification` is always present: **Not Scheduled** until a Notification row exists, then the stored status. `lastError` is on that object, not the Appointment.
 

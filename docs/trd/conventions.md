@@ -44,6 +44,6 @@ HTTP status still matches the error (400/401/403/404/409/429/503). 401 and 403 f
 
 **OpenAPI:** springdoc UI like FastAPI `/docs`. See [openapi.md](openapi.md).
 
-**Time:** UTC Instant stored; **Booking Offset** from `scheduledAt`; Staff GET uses Dealership Timezone. No Customer timezone field. See [time.md](time.md).
+**Time:** UTC Instant stored; **Booking Offset** from Dealership Timezone at that Instant; Staff GET uses Dealership Timezone. No Customer timezone field. See [time.md](time.md).
 
 **Code:** reuse, no copy-paste. See [code-style.md](code-style.md).

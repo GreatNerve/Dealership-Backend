@@ -13,7 +13,7 @@
 }
 ```
 
-Customer id and contact from token/profile. `notify: false` → Mock Appointment: append `logs/notifications.log` and store Notification (no email). `notify: true` → Notification Mode (`stub` or `smtp`). `scheduledAt` → UTC Instant + **Booking Offset** (`display_offset`). No timezone field. Naive datetime (no offset) → `400`.
+Customer id and contact from token/profile. `notify: false` → Mock Appointment: append `logs/notifications.log` and store Notification (no email). `notify: true` → Notification Mode (`stub` or `smtp`). `scheduledAt` → UTC Instant. **Booking Offset** (`display_offset`) is Dealership Timezone at that Instant (Service Slot wall clock). Payload `Z` from the slots API is not the mail offset. No timezone field. Naive datetime (no offset) → `400`.
 
 **Staff POST `/appointments`**
 
@@ -26,7 +26,7 @@ Customer id and contact from token/profile. `notify: false` → Mock Appointment
 }
 ```
 
-Home Dealership from membership. Extra `dealershipId` in body → ignore or `400`. Vehicle not owned by `customerId` → `409`. Booking Offset still from `scheduledAt` (mail does not use Dealership Timezone).
+Home Dealership from membership. Extra `dealershipId` in body → ignore or `400`. Vehicle not owned by `customerId` → `409`. Booking Offset is Dealership Timezone at the visit Instant (slots JSON is often `Z`).
 
 **Service Slot** (both roles): Instant must be a grid start in **Dealership Timezone** (`APP_SLOT_DURATION`) → else `400 NOT_A_SERVICE_SLOT`.
 

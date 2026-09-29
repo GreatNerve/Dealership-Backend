@@ -183,8 +183,7 @@ public class AppointmentService {
     appointment.setCustomerId(customer.getId());
     appointment.setVehicleId(vehicle.getId());
     appointment.setDealershipId(shop.getId());
-    appointment.setScheduledAt(booking.utc());
-    appointment.setDisplayOffset(booking.displayOffset().getId());
+    applyVisit(appointment, booking, shop);
     appointment.setStatus(AppointmentStatus.CONFIRMED);
     appointment.setCreatedByUserId(user.userId());
     appointment.setCreatedByRole(user.role());
@@ -251,8 +250,7 @@ public class AppointmentService {
                 .orElseThrow(ApiException::notFound);
     slots.assertBookable(shop, booking.utc(), appointment.getId());
     reminders.cancelUnsent(appointment.getId());
-    appointment.setScheduledAt(booking.utc());
-    appointment.setDisplayOffset(booking.displayOffset().getId());
+    applyVisit(appointment, booking, shop);
     appointments.saveAndFlush(appointment);
     reminders.insertForAppointment(appointment.getId());
     return toResponse(row, user.role());
@@ -418,6 +416,14 @@ public class AppointmentService {
       }
     }
     return new AppointmentDtos.Stats(confirmed, cancelled, completed, noShow, List.of());
+  }
+
+  private static void applyVisit(
+      AppointmentEntity appointment, BookingInstant booking, DealershipEntity shop) {
+    appointment.setScheduledAt(booking.utc());
+    // Slot JSON is often Z; mail wall clock is the shop offset at that Instant.
+    appointment.setDisplayOffset(
+        BookingTimes.offsetInZone(booking.utc(), shop.getTimezone()).getId());
   }
 
   private DealershipEntity homeShop() {

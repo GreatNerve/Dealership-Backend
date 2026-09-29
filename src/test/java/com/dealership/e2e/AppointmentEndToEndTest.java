@@ -14,6 +14,7 @@ import com.dealership.notification.smtp.StubNotificationSender;
 import com.dealership.reminder.ReminderScheduler;
 import com.dealership.shared.api.PageResponse;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.function.LongSupplier;
@@ -50,10 +51,12 @@ class AppointmentEndToEndTest extends AbstractIT {
   @Test
   void dueReminderSendsOnceWithBookingOffsetWallTime() {
     Shop shop = open("America/New_York");
-    AppointmentDtos.AppointmentResponse created =
-        createCustomerAppointment(shop, future(5, 30), true);
-    assertEquals("+05:30", created.displayOffset());
-    assertTrue(created.scheduledAtLocal().contains("+05:30"));
+    OffsetDateTime when = future(5, 30);
+    AppointmentDtos.AppointmentResponse created = createCustomerAppointment(shop, when, true);
+    String shopOffset = when.toInstant().atZone(ZoneId.of("America/New_York")).getOffset().getId();
+    assertEquals(shopOffset, created.displayOffset());
+    assertTrue(created.scheduledAtLocal().contains(shopOffset));
+    assertFalse(created.displayOffset().equals("+05:30"));
 
     ResponseEntity<AppointmentDtos.AppointmentResponse> staffView =
         http.exchange(
@@ -76,10 +79,11 @@ class AppointmentEndToEndTest extends AbstractIT {
     long sends =
         stub.recorded().stream().filter(s -> s.appointmentId().equals(created.id())).count();
     assertEquals(1, sends);
+    String mailOffset = "UTC" + shopOffset;
     assertTrue(
         stub.recorded().stream()
             .anyMatch(
-                s -> s.appointmentId().equals(created.id()) && s.wallTime().contains("UTC+05:30")));
+                s -> s.appointmentId().equals(created.id()) && s.wallTime().contains(mailOffset)));
     assertEquals(
         Integer.valueOf(1),
         jdbc.queryForObject(

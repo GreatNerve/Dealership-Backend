@@ -141,7 +141,7 @@ Public HTTP ingest for provider **Delivery Events**. Auth is a shared secret (`A
 _Avoid_: Brevo-only URL as the product API, mutating worker status from the webhook
 
 **Booking Offset**:
-The UTC offset on `scheduledAt` when the **Appointment** is created or rescheduled (example `+05:30`). Stored on the **Appointment**. **Notifications** and Customer GET use it for Local Wall Time. Not a register field.
+The UTC offset of **Dealership Timezone** at the Appointment Instant (example `+05:30`). Stored on the **Appointment**. **Notifications** and Customer GET use it for Local Wall Time. Not taken from a `Z` Service Slot Instant. Not a register field.
 _Avoid_: Customer timezone in the payload, server timezone, asking for IANA on the Customer
 
 **Dealership Timezone**:
@@ -202,7 +202,7 @@ Same shop in v1. Use **Dealership** in APIs. Use **Venue** only in speech for â€
 Do not use in APIs. The resource is **Appointment**. The grid cell is **Service Slot**.
 
 **User timezone**:
-Do not use. Do not collect a Customer timezone field. Mail uses **Booking Offset** from `scheduledAt`. Staff GET uses **Dealership Timezone**. The EC2 host zone is irrelevant.
+Do not use. Do not collect a Customer timezone field. Mail uses **Booking Offset** from Dealership Timezone at the visit Instant. Staff GET uses **Dealership Timezone**. The EC2 host zone is irrelevant.
 
 ## Example dialogue
 

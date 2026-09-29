@@ -14,7 +14,7 @@ One of each (names can differ; the *job* must not be duplicated):
 | Page JSON `{ items, page, size, totalElements, totalPages }` | one record + one mapper |
 | Own / home-Dealership / else 404 | one access check |
 | Error JSON + `correlationId` | one `ApiResponse` envelope (`success`, `data`, `error`, `message`, `correlationId`) |
-| Parse `scheduledAt` → Instant + `display_offset` | one time parse |
+| Parse `scheduledAt` Instant; store `display_offset` from Dealership Timezone at that Instant | one time parse + `BookingTimes.offsetInZone` |
 | Mail Local Wall Time from Instant + offset | one formatter (HTTP Customer GET and mail) |
 | Instant `from`/`to` query bind | one shared binder (Appointments, Notifications, stats) |
 | Stats `DAY`/`WEEK`/`MONTH` slices | one `StatsBucket` (zero-filled `buckets[]` in shop TZ) |
