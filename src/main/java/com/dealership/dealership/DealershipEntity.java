@@ -24,6 +24,9 @@ public class DealershipEntity {
   @Column(nullable = false)
   private String address;
 
+  @Column(name = "default_capacity", nullable = false)
+  private int defaultCapacity;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
@@ -75,6 +78,14 @@ public class DealershipEntity {
 
   public void setAddress(String address) {
     this.address = address;
+  }
+
+  public int getDefaultCapacity() {
+    return defaultCapacity;
+  }
+
+  public void setDefaultCapacity(int defaultCapacity) {
+    this.defaultCapacity = defaultCapacity;
   }
 
   public Instant getCreatedAt() {

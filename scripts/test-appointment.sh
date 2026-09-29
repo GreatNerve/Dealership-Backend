@@ -74,6 +74,7 @@ import sys
 hours, minutes = int(sys.argv[1]), int(sys.argv[2])
 off = timezone(timedelta(hours=5, minutes=30))
 when = datetime.now(timezone.utc).astimezone(off) + timedelta(hours=hours, minutes=minutes)
+when = when.replace(second=0, microsecond=0, minute=0 if when.minute < 30 else 30)
 stamp = when.strftime('%Y-%m-%dT%H:%M:%S')
 z = when.strftime('%z')
 print(stamp + z[:3] + ':' + z[3:])
@@ -122,6 +123,11 @@ provision_fresh() {
     -H 'Content-Type: application/json' \
     -d '{"name":"Appointment Test Shop","timezone":"Asia/Kolkata","address":"1 Road"}')"
   DEALERSHIP_ID="$(json_get "$shop" data.id)"
+  hours="$("$PY" -c 'import json; print(json.dumps([{"weekday":d,"closed":False,"openTime":"00:00:00","closeTime":"00:00:00"} for d in range(1,8)]))')"
+  api PUT "/api/v1/dealerships/$DEALERSHIP_ID/schedule" \
+    -H "Authorization: Bearer $staff_token" \
+    -H 'Content-Type: application/json' \
+    -d "{\"defaultCapacity\":10,\"hours\":$hours}" >/dev/null
 
   echo "register customer $cust_email"
   json_get "$(api POST /api/v1/auth/register \
@@ -190,6 +196,17 @@ else
   provision_fresh
 fi
 echo "dealershipId=$DEALERSHIP_ID"
+staff_login="$(api POST /api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"staff@greatnerve.com","password":"'"$PASSWORD"'"}')"
+staff_token="$(json_get "$staff_login" data.access_token || true)"
+if [[ -n "${staff_token:-}" && "$staff_token" != "None" ]]; then
+  hours="$("$PY" -c 'import json; print(json.dumps([{"weekday":d,"closed":False,"openTime":"00:00:00","closeTime":"00:00:00"} for d in range(1,8)]))')"
+  api PUT "/api/v1/dealerships/$DEALERSHIP_ID/schedule" \
+    -H "Authorization: Bearer $staff_token" \
+    -H 'Content-Type: application/json' \
+    -d "{\"defaultCapacity\":10,\"hours\":$hours}" >/dev/null || true
+fi
 
 PLATE="KA$(date +%H%M%S)$(printf '%02d' $((RANDOM % 100)))"
 

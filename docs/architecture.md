@@ -47,10 +47,11 @@ flowchart TB
   subgraph controller [Controller — same JVM]
     direction TB
     A1["1. Validate + Idempotency-Key"]
+    A15["1b. Service Slot — align; Customer also hours, lock, count"]
     A2["2. INSERT Appointment CONFIRMED"]
     A3["3. INSERT Reminder rows — 24h and 2h due times"]
     A4["4. Commit 201 — no Notification yet"]
-    A1 --> A2 --> A3 --> A4
+    A1 --> A15 --> A2 --> A3 --> A4
   end
 
   Wait["Wait until due. If worker was down, send only inside Send Window"]
@@ -215,7 +216,7 @@ Public, Bearer `APP_DELIVERY_WEBHOOK_SECRET`. Adapter maps payload → generic e
 
 - Cancel Confirmed: Customer own or Staff at home Dealership. Appointment `CANCELLED`; unsent Reminders `CANCELLED` in SQL (`UPDATE … WHERE`); no unsend of SENT. Other customer / other shop → 404.
 - Staff complete Confirmed: Appointment `COMPLETED`; same Reminder cancel; Vehicle no longer Blocking. Other shop → 404. Customer → 403.
-- Reschedule Confirmed: Customer own or Staff at home Dealership. Reject if current visit already past, if new `scheduledAt` is past, or if Instant is unchanged. Cancel unsent Reminders; insert new Reminder rows with `schedule_version = MAX+1` (Reminders own the version; Appointment is not bumped); `INSERT … SELECT` + interval; insert uses send-window midpoint, and skips an offset again only when it was already SENT and the new due is past. SENT Notifications stay. Reminder GET returns **all versions**. Shop Notification list only existing rows. No outbox until new Reminders are due. Other customer / other shop → 404.
+- Reschedule Confirmed: Customer own or Staff at home Dealership. Reject if current visit already past, if new `scheduledAt` is past, or if Instant is unchanged. Same **Service Slot** rules as create (Customer: hours, lock + count excluding this row, Max Advance Days; Staff: aligned only). Cancel unsent Reminders; insert new Reminder rows with `schedule_version = MAX+1` (Reminders own the version; Appointment is not bumped); `INSERT … SELECT` + interval; insert uses send-window midpoint, and skips an offset again only when it was already SENT and the new due is past. SENT Notifications stay. Reminder GET returns **all versions**. Shop Notification list only existing rows. No outbox until new Reminders are due. Other customer / other shop → 404.
 - No-show job: set-based SQL `now() >= scheduled_at + interval '1 hour'` → `NO_SHOW_EXPIRED`; Vehicle free for a new Confirmed row.
 
 v1 reads: own or home Dealership, else 404; lists paginated and searchable (`q`). Appointment list Instant `from`/`to` on `scheduled_at`. Staff `GET /notifications` by `dealership_id`. **In Progress** is later.

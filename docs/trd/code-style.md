@@ -27,6 +27,7 @@ One of each (names can differ; the *job* must not be duplicated):
 | Sanitize / normalize strings | `Inputs` (trim + strip controls). JSON deserializer and query/form/header binder both call it. `Inputs.email` lowercases. `Inputs.clip` / `Inputs.fit` (hash when over max) for varchar columns |
 | Client IP for rate limit | one `ClientIps` + `Cidrs` (`X-Forwarded-For` only if `RemoteAddr` is a trusted proxy) |
 | Stop new claim polls on shutdown | one `ShutdownGate` (`SmartLifecycle`); Reminder / Manual / outbox pollers check it |
+| **Service Slot** grid, hours, override, last-seat lock | one `ServiceSlots` (pure clock math) + one `ServiceSlotService` (lock, count, schedule writes). Appointment create/reschedule call it; do not copy the count SQL. |
 
 Do **not** invent a generic “worker framework” for two queues. Same pattern, not a new abstraction layer.
 

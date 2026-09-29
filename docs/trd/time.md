@@ -12,7 +12,7 @@ Workers may run on EC2 in `us-east-1` while the Customer booked `22:00+05:30` (I
 | --- | --- |
 | `scheduled_at` (`timestamptz`) | UTC Instant. Reminder offsets, send window, no-show, leases. |
 | `appointments.display_offset` | ISO-8601 offset taken from `scheduledAt` (`+05:30`). Mail and Customer GET. |
-| `dealerships.timezone` | IANA id on the shop. Staff GET only. Not a Customer field. |
+| `dealerships.timezone` | IANA id on the shop. Staff GET, **Service Slot** grid, weekly hours, **Capacity Overrides**, Max Advance Days. Not a Customer field. |
 
 No `customers.timezone`. No timezone on register or on Appointment create besides what is already inside `scheduledAt`.
 
@@ -24,7 +24,7 @@ JVM and Postgres: UTC. Naive datetime (no offset) → `400`.
 { "scheduledAt": "2026-09-22T22:00:00+05:30" }
 ```
 
-Parse offset, convert to Instant. Store `2026-09-22T16:30:00Z` and `display_offset = +05:30`. Reschedule: take Instant and offset from the new `scheduledAt`.
+Parse offset, convert to Instant. Store `2026-09-22T16:30:00Z` and `display_offset = +05:30`. Reschedule: take Instant and offset from the new `scheduledAt`. The Instant must be a **Service Slot** start when converted to **Dealership Timezone** (`APP_SLOT_DURATION`, default 30 minutes; seconds and nanos 0). Customer create/reschedule also require that local wall time to fall in weekly hours (open inclusive, close exclusive) and on or before the last local day of `APP_MAX_ADVANCE_DAYS` (default 15): last start Instant is strictly before `today.plusDays(N+1)` at start of day in the shop zone.
 
 JSON must be valid: no trailing comma (`{ "scheduledAt": "..." }` not `{ "scheduledAt": "...", }`). Trailing comma → `400 MALFORMED_REQUEST`.
 
@@ -121,7 +121,7 @@ The application layer does not load every due row, compute times, and write back
 | No-show | one `UPDATE appointments … WHERE CONFIRMED AND now() >= scheduled_at + interval '1 hour'` |
 | Claim | `SKIP LOCKED` **Claim Batch** (`APP_WORKERS_CLAIM_BATCH=0` auto from CPUs). Floor 18 = 500k/day drain per 500ms poll; max 50 so no `findAll`. Send-window + Confirmed in `WHERE`. Why: [../decision/scale.md](../decision/scale.md) |
 | Mail | After claim, one JOIN returning a **lean projection**. Copy that into outbox `payload` jsonb (replicate what the mail needs). Consumer must not `findById` the full Appointment/Customer/Vehicle/Dealership graph |
-| Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at`. List FKs: `appointments.customer_id`, `appointments.dealership_id`, `appointments (dealership_id, scheduled_at)`, `vehicles.customer_id`, `notifications.appointment_id` / `reminder_id` / `(dealership_id, created_at)`, `notification_delivery_events (notification_id)` |
+| Indexes | Partial: due Reminders (`PENDING`/`RETRY_SCHEDULED`, `scheduled_at`); no-show Confirmed `scheduled_at`. List FKs: `appointments.customer_id`, `appointments.dealership_id`, `appointments (dealership_id, scheduled_at)`, `appointments (dealership_id, scheduled_at) WHERE status = 'CONFIRMED'` (**Service Slot** count), `vehicles.customer_id`, `notifications.appointment_id` / `reminder_id` / `(dealership_id, created_at)`, `notification_delivery_events (notification_id)` |
 
 Outbox snapshot fields: appointment id, notification id, generation, offset minutes (system), schedule version (system), `scheduled_at`, `display_offset`, dealership name, customer name (optional), vehicle make/model/year, **Vehicle Number** (mail only, never logged), contact (for SMTP, never logged). **Manual** snapshot also carries stored `subject`/`body`.
 

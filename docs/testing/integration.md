@@ -16,6 +16,10 @@ These tests prove the **database is the ledger**.
 - Second Confirmed Appointment on the same Vehicle fails the partial unique index when `one_confirmed` is true (default env).
 - `APP_ONE_CONFIRMED_PER_VEHICLE=false` → two Confirmed rows, `one_confirmed=false`.
 - Second Vehicle for the same Customer accepts.
+- **Capacity Override** that overlaps an existing override → `409 OVERRIDE_OVERLAPS`.
+- Hours or capacity write that strands Confirmed → `409 SCHEDULE_CONFLICT`.
+- Customer `scheduledAt` not on the grid → `400 NOT_A_SERVICE_SLOT`. Outside hours → `400 OUTSIDE_HOURS`. Past Max Advance Days → `400 TOO_FAR_AHEAD`. Full slot → `409 SLOT_FULL`.
+- Staff create on a full or closed slot (aligned Instant) → 201.
 
 ## API idempotency table
 

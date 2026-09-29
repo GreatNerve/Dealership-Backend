@@ -5,6 +5,8 @@ import com.dealership.identity.AuthDtos;
 import com.dealership.identity.Role;
 import com.dealership.vehicle.VehicleDtos;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -133,6 +135,25 @@ public abstract class AbstractIT {
     headers.setBearerAuth(token);
     headers.set("Content-Type", "application/json");
     return headers;
+  }
+
+  protected static OffsetDateTime alignSlot(OffsetDateTime when) {
+    int minute = when.getMinute() < 30 ? 0 : 30;
+    return when.withMinute(minute).withSecond(0).withNano(0);
+  }
+
+  protected static OffsetDateTime futureVisit() {
+    return alignSlot(
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30")));
+  }
+
+  protected static OffsetDateTime hoursFromNow(int hours) {
+    return alignSlot(
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusHours(hours)
+            .withOffsetSameInstant(ZoneOffset.of("+05:30")));
   }
 
   protected static String randomPlate(String state) {

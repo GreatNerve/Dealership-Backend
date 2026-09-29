@@ -17,6 +17,8 @@ spring:
         auto-startup: true
 
 app:
+  appointments:
+    seed-24h: true
   rate-limit:
     enabled: false
   notifications:

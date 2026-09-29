@@ -394,9 +394,10 @@ class AppointmentEndToEndTest extends AbstractIT {
   }
 
   private static OffsetDateTime future(int hours, int minutes) {
-    return OffsetDateTime.now(ZoneOffset.UTC)
-        .plusDays(3)
-        .withOffsetSameInstant(ZoneOffset.ofHoursMinutes(hours, minutes));
+    return alignSlot(
+        OffsetDateTime.now(ZoneOffset.UTC)
+            .plusDays(3)
+            .withOffsetSameInstant(ZoneOffset.ofHoursMinutes(hours, minutes)));
   }
 
   private boolean waitForStub(UUID appointmentId, int min) {

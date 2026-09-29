@@ -118,6 +118,10 @@ app:
     ttl: ${APP_JWT_TTL:7d}
   appointments:
     one-confirmed-per-vehicle: ${APP_ONE_CONFIRMED_PER_VEHICLE:true}
+    slot-duration: ${APP_SLOT_DURATION:30m}
+    default-capacity: ${APP_SLOT_DEFAULT_CAPACITY:10}
+    max-advance-days: ${APP_MAX_ADVANCE_DAYS:15}
+    seed-24h: ${APP_SLOT_SEED_24H:false}
   reminders:
     no-show-grace: ${APP_NO_SHOW_GRACE:1h}
     offsets: "${APP_REMINDER_OFFSETS:24h,2h}"

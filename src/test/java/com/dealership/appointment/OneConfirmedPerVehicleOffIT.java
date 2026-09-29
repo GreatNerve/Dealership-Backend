@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import com.dealership.AbstractIT;
 import com.dealership.identity.Role;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpEntity;
@@ -26,10 +25,7 @@ class OneConfirmedPerVehicleOffIT extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     AppointmentDtos.AppointmentResponse first = book(customerToken, vehicleId, dealershipId, when);
     AppointmentDtos.AppointmentResponse second =
         book(customerToken, vehicleId, dealershipId, when.plusDays(1));

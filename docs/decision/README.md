@@ -16,6 +16,7 @@ Front door: [../../README.md](../../README.md). Product rules: [../prd/README.md
 | Email tracking is append-only events (not Notification columns) | [notification-pipeline.md](notification-pipeline.md), [../adr/0012-smtp-correlation-and-delivery-events.md](../adr/0012-smtp-correlation-and-delivery-events.md) |
 | Configurable offsets and send window | [send-window-and-config.md](send-window-and-config.md) |
 | Dual booking, staff pinned to home shop | [dual-booking.md](dual-booking.md) |
+| **Service Slot** grid, capacity, advisory lock | [service-slot-capacity.md](service-slot-capacity.md), [../adr/0013-service-slot-advisory-lock.md](../adr/0013-service-slot-advisory-lock.md) |
 | One Confirmed Appointment per Vehicle | [one-appointment-per-vehicle.md](one-appointment-per-vehicle.md) |
 | Appointment lifecycle (no shop floor) | [appointment-lifecycle.md](appointment-lifecycle.md) |
 | UTC Instant + Booking Offset from `scheduledAt` | [utc-instant-and-booking-offset.md](utc-instant-and-booking-offset.md) |

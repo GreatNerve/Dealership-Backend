@@ -28,6 +28,10 @@ Customer id and contact from token/profile. `notify: false` → Mock Appointment
 
 Home Dealership from membership. Extra `dealershipId` in body → ignore or `400`. Vehicle not owned by `customerId` → `409`. Booking Offset still from `scheduledAt` (mail does not use Dealership Timezone).
 
+**Service Slot** (both roles): Instant must be a grid start in **Dealership Timezone** (`APP_SLOT_DURATION`) → else `400 NOT_A_SERVICE_SLOT`.
+
+**Customer** also: weekly hours → `400 OUTSIDE_HOURS`; `now` … end of local `today + APP_MAX_ADVANCE_DAYS` → `400 TOO_FAR_AHEAD`; after `pg_advisory_xact_lock(dealership, slot)`, count `CONFIRMED` at that Instant (exclude this row on reschedule); `booked >=` effective capacity (default or **Capacity Override**) → `409 SLOT_FULL`. Staff skips hours, capacity, and Max Advance Days (walk-in). All Confirmed rows count toward `booked`.
+
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/appointments/stats` | **Staff**, home Dealership. Query Instant `from`/`to` required. Optional `bucket` (`DAY` \| `WEEK` \| `MONTH`). JSON: `confirmed`, `cancelled`, `completed`, `noShow` (`scheduled_at` in range) and `buckets[]` (zero-filled when `bucket` is set; empty when omitted). Register **before** `/{id}`. |
@@ -39,7 +43,7 @@ Home Dealership from membership. Extra `dealershipId` in body → ignore or `400
 | POST | `/appointments/{id}/reschedule` | Body `{ scheduledAt }`. Customer: own. Staff: home Dealership. New UTC Instant and **Booking Offset**. Must be future, must differ from current Instant (`400 SCHEDULED_AT_UNCHANGED`), and current visit must not already be past (`400 SCHEDULED_AT_PAST`). Reminders own Schedule Version (`MAX(schedule_version)+1` on insert). Insert uses send-window midpoint; skip that offset again only when it was already SENT and the new due is past. Unsent Reminders `CANCELLED`; SENT Notifications stay. Reminder GET returns **all versions**. Other customer / other shop → 404. 409 if not Confirmed. Concurrent write → `409 CONCURRENT_UPDATE`. |
 | POST | `/appointments/{id}/notifications` | **Staff**, home Dealership. **Manual** send. `Idempotency-Key` required. See [notification.md](notification.md). |
 
-Create errors: `400` (Bean Validation `VALIDATION_ERROR`, `scheduledAt` already past, missing/oversized Idempotency-Key), `401/403`, `404`, `409` Vehicle already Confirmed, `429`. Request strings sanitized via `Inputs` before validation.
+Create errors: `400` (Bean Validation `VALIDATION_ERROR`, `scheduledAt` already past, `NOT_A_SERVICE_SLOT`, `OUTSIDE_HOURS`, `TOO_FAR_AHEAD`, missing/oversized Idempotency-Key), `401/403`, `404`, `409` Vehicle already Confirmed / `SLOT_FULL`, `429`. Request strings sanitized via `Inputs` before validation.
 
 One DB transaction on create: Appointment row + Reminder rows via SQL `INSERT … SELECT` (`scheduled_at - CAST(:offset AS interval)`) + idempotency row. **No outbox or Notification rows at create.** Do not compute due times in Java.
 

@@ -77,10 +77,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID vehicleId = createVehicle(customerToken, plate1);
     UUID vehicle2 = createVehicle(customerToken, plate2);
 
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     String body =
         """
         {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s","notify":true}
@@ -168,10 +165,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -216,10 +210,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -260,10 +251,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -302,10 +290,7 @@ class AppointmentFlowTest extends AbstractIT {
     createDealership(otherStaff);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -356,10 +341,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -411,10 +393,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -524,10 +503,7 @@ class AppointmentFlowTest extends AbstractIT {
     String secondToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID firstVehicle = createVehicle(firstToken, randomPlate("KA"));
     UUID secondVehicle = createVehicle(secondToken, randomPlate("MH"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     String sharedKey = "shared-" + UUID.randomUUID();
     HttpHeaders first = bearer(firstToken);
     first.add("Idempotency-Key", sharedKey);
@@ -568,10 +544,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusHours(10)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = hoursFromNow(10);
     String body =
         """
         {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
@@ -623,10 +596,7 @@ class AppointmentFlowTest extends AbstractIT {
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
     // 30h out: 24h due is still ~6h in the future → must stay PENDING (regular create/send).
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusHours(30)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = hoursFromNow(30);
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID id =
@@ -663,10 +633,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusHours(20)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = hoursFromNow(20);
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID id =
@@ -705,9 +672,10 @@ class AppointmentFlowTest extends AbstractIT {
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
     OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(2)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+        alignSlot(
+            OffsetDateTime.now(ZoneOffset.UTC)
+                .plusDays(2)
+                .withOffsetSameInstant(ZoneOffset.of("+05:30")));
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     var created =
@@ -732,10 +700,7 @@ class AppointmentFlowTest extends AbstractIT {
     assertEquals(HttpStatus.BAD_REQUEST, same.getStatusCode());
     assertTrue(same.getBody().contains("SCHEDULED_AT_UNCHANGED"));
 
-    OffsetDateTime withinDay =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusHours(12)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime withinDay = hoursFromNow(12);
     ResponseEntity<AppointmentDtos.AppointmentResponse> moved =
         http.exchange(
             "/api/v1/appointments/" + created.id() + "/reschedule",
@@ -780,10 +745,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("DL"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusHours(30)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = hoursFromNow(30);
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID id =
@@ -823,10 +785,7 @@ class AppointmentFlowTest extends AbstractIT {
         reminderId,
         id + ":1440:1",
         id);
-    OffsetDateTime closer =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusHours(20)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime closer = hoursFromNow(20);
     ResponseEntity<AppointmentDtos.AppointmentResponse> moved =
         http.exchange(
             "/api/v1/appointments/" + id + "/reschedule",
@@ -861,10 +820,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID insideId =
@@ -976,10 +932,7 @@ class AppointmentFlowTest extends AbstractIT {
         registerAndLogin("staff-" + UUID.randomUUID() + "@ex.com", Role.DEALERSHIP_STAFF);
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     UUID first =
         book(customerToken, createVehicle(customerToken, randomPlate("TN")), dealershipId, when);
     UUID second =
@@ -1043,10 +996,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("TN"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     String body =
         """
         {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
@@ -1122,10 +1072,7 @@ class AppointmentFlowTest extends AbstractIT {
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("GJ"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -1367,10 +1314,7 @@ class AppointmentFlowTest extends AbstractIT {
     assertTrue(byPlate.getBody().toString().contains(customerId.toString()));
     assertTrue(byPlate.getBody().toString().contains(vehicleId.toString()));
 
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders book = bearer(staffToken);
     book.add("Idempotency-Key", "key-" + UUID.randomUUID());
     ResponseEntity<AppointmentDtos.AppointmentResponse> booked =
@@ -1418,10 +1362,7 @@ class AppointmentFlowTest extends AbstractIT {
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     String plate = randomPlate("KA");
     UUID vehicleId = createVehicle(customerToken, plate);
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders headers = bearer(customerToken);
     headers.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -1682,10 +1623,7 @@ WHERE notification_id = ? AND provider_event_id <> 'e1' AND provider_event_id <>
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));
-    OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(3)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+    OffsetDateTime when = futureVisit();
     HttpHeaders createHeaders = bearer(customerToken);
     createHeaders.add("Idempotency-Key", "key-" + UUID.randomUUID());
     UUID appointmentId =
@@ -1870,9 +1808,10 @@ WHERE notification_id = ? AND provider_event_id <> 'e1' AND provider_event_id <>
     UUID dealershipId = createDealership(staffToken);
     String customerToken = registerAndLogin("cust-" + UUID.randomUUID() + "@ex.com", Role.CUSTOMER);
     OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(4)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+        alignSlot(
+            OffsetDateTime.now(ZoneOffset.UTC)
+                .plusDays(4)
+                .withOffsetSameInstant(ZoneOffset.of("+05:30")));
     int rows = 8;
     for (int i = 0; i < rows; i++) {
       UUID vehicleId = createVehicle(customerToken, randomPlate("KA"));

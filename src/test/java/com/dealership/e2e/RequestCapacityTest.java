@@ -48,9 +48,10 @@ class RequestCapacityTest extends AbstractIT {
       vehicles.add(createVehicle(customerToken, randomPlate("KA")));
     }
     OffsetDateTime when =
-        OffsetDateTime.now(ZoneOffset.UTC)
-            .plusDays(4)
-            .withOffsetSameInstant(ZoneOffset.of("+05:30"));
+        alignSlot(
+            OffsetDateTime.now(ZoneOffset.UTC)
+                .plusDays(4)
+                .withOffsetSameInstant(ZoneOffset.of("+05:30")));
 
     AtomicInteger readOk = new AtomicInteger();
     AtomicInteger writeOk = new AtomicInteger();
@@ -83,6 +84,7 @@ class RequestCapacityTest extends AbstractIT {
       }
       for (int i = 0; i < WRITES; i++) {
         UUID vehicleId = vehicles.get(i);
+        OffsetDateTime slot = when.plusMinutes(30L * i);
         pool.execute(
             () -> {
               await(start);
@@ -93,7 +95,7 @@ class RequestCapacityTest extends AbstractIT {
                     """
                     {"vehicleId":"%s","dealershipId":"%s","scheduledAt":"%s"}
                     """
-                        .formatted(vehicleId, dealershipId, when);
+                        .formatted(vehicleId, dealershipId, slot);
                 ResponseEntity<AppointmentDtos.AppointmentResponse> res =
                     http.exchange(
                         "/api/v1/appointments",

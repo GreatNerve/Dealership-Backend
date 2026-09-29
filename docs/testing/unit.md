@@ -16,6 +16,7 @@ No Spring context. No containers. Public functions and policies only.
 `ReminderRepository` SQL is **integration** (INSERT CASE midpoint + already-SENT skip, send-window `UPDATE`, claim `WHERE`). Unit tests must not fake `Instant.minus(24, HOURS)` as the source of truth.
 
 - `scheduledAt` already past → create rejected (policy lives here; HTTP mapping is e2e).
+- **Service Slot**: alignment, open/close exclusive, override overlap, Max Advance exclusive end-of-day, effective capacity. Advisory lock + COUNT is integration.
 - Cancelled or old schedule version → must not send (policy; SQL is integration).
 
 ## One Confirmed per Vehicle

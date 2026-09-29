@@ -16,6 +16,22 @@ public interface AppointmentRepository extends JpaRepository<AppointmentEntity, 
 
   Optional<AppointmentEntity> findByIdAndDealershipId(UUID id, UUID dealershipId);
 
+  List<AppointmentEntity> findByDealershipIdAndStatus(UUID dealershipId, AppointmentStatus status);
+
+  @Query(
+      """
+      SELECT count(a) FROM AppointmentEntity a
+      WHERE a.dealershipId = :shop
+        AND a.status = :status
+        AND a.scheduledAt = :at
+        AND a.id <> :excludeId
+      """)
+  long countConfirmedAt(
+      @Param("shop") UUID shop,
+      @Param("status") AppointmentStatus status,
+      @Param("at") Instant at,
+      @Param("excludeId") UUID excludeId);
+
   @Query(
       value =
           """

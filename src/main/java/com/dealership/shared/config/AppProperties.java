@@ -89,6 +89,13 @@ public class AppProperties {
   @PostConstruct
   void validate() {
     reminders.offsetMinutes();
+    appointments.slotDurationMinutes();
+    if (appointments.getDefaultCapacity() < 0) {
+      throw new IllegalStateException("APP_SLOT_DEFAULT_CAPACITY must be >= 0");
+    }
+    if (appointments.getMaxAdvanceDays() < 1 || appointments.getMaxAdvanceDays() > 365) {
+      throw new IllegalStateException("APP_MAX_ADVANCE_DAYS must be between 1 and 365");
+    }
     byte[] secret =
         jwt.getSecret() == null ? new byte[0] : jwt.getSecret().getBytes(StandardCharsets.UTF_8);
     if (secret.length < 32) {
@@ -405,6 +412,10 @@ public class AppProperties {
 
   public static class Appointments {
     private boolean oneConfirmedPerVehicle = true;
+    private Duration slotDuration = Duration.ofMinutes(30);
+    private int defaultCapacity = 10;
+    private int maxAdvanceDays = 15;
+    private boolean seed24h = false;
 
     public boolean isOneConfirmedPerVehicle() {
       return oneConfirmedPerVehicle;
@@ -412,6 +423,47 @@ public class AppProperties {
 
     public void setOneConfirmedPerVehicle(boolean oneConfirmedPerVehicle) {
       this.oneConfirmedPerVehicle = oneConfirmedPerVehicle;
+    }
+
+    public Duration getSlotDuration() {
+      return slotDuration;
+    }
+
+    public void setSlotDuration(Duration slotDuration) {
+      this.slotDuration = slotDuration;
+    }
+
+    public int slotDurationMinutes() {
+      long minutes = slotDuration.toMinutes();
+      if (minutes < 5 || minutes > 120 || Duration.ofDays(1).toMinutes() % minutes != 0) {
+        throw new IllegalStateException(
+            "APP_SLOT_DURATION must be 5–120 minutes and divide 24 hours evenly");
+      }
+      return (int) minutes;
+    }
+
+    public int getDefaultCapacity() {
+      return defaultCapacity;
+    }
+
+    public void setDefaultCapacity(int defaultCapacity) {
+      this.defaultCapacity = defaultCapacity;
+    }
+
+    public int getMaxAdvanceDays() {
+      return maxAdvanceDays;
+    }
+
+    public void setMaxAdvanceDays(int maxAdvanceDays) {
+      this.maxAdvanceDays = maxAdvanceDays;
+    }
+
+    public boolean isSeed24h() {
+      return seed24h;
+    }
+
+    public void setSeed24h(boolean seed24h) {
+      this.seed24h = seed24h;
     }
   }
 

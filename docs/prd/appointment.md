@@ -15,6 +15,8 @@
 11. As a Staff Member, I want Instant `from`/`to` on the Appointment list (`scheduled_at`) plus `status`, so the frontend can filter “today” in **Dealership Timezone**.
 12. As a Staff Member, I want to mark a Confirmed Appointment **Completed** when the visit is done, so the Vehicle is free and unsent Reminders stop.
 13. As a Staff Member, I want to send a **Manual** Notification from that Appointment (`POST /appointments/{id}/notifications`).
+14. As a Customer, I want create and reschedule to use only an open **Service Slot** that still has **Slot Capacity**, and not further than **Max Advance Days**.
+15. As a Staff Member, I want walk-in create/reschedule to ignore hours, capacity, and Max Advance Days, but still land on a **Service Slot**.
 
 ## Policies
 
@@ -24,9 +26,10 @@
 | Customer create body | `{ vehicleId, dealershipId, scheduledAt, notify? }` |
 | Staff create body | `{ customerId, vehicleId, scheduledAt, notify? }`. Dealership from token. |
 | Past `scheduledAt` | Reject create. |
+| Service Slot | `scheduledAt` Instant, in **Dealership Timezone**, must be a grid start (`APP_SLOT_DURATION`, default 30m) (`400 NOT_A_SERVICE_SLOT`). Customer: also inside weekly hours (`400 OUTSIDE_HOURS`), `booked <` effective **Slot Capacity** (`409 SLOT_FULL`), and before the start of the local day after `today + APP_MAX_ADVANCE_DAYS` (`400 TOO_FAR_AHEAD`). Staff: alignment only (walk-in). All Confirmed at that Instant count, including Staff overbook. Last Customer seat: `pg_advisory_xact_lock` then count, same transaction. See [dealership.md](dealership.md). |
 | Late vs Reminder windows | At create/reschedule: insert uses the send-window midpoint. Never SENT and still before midpoint → `PENDING` (first book at T−20h still gets 24h). Past midpoint → `EXPIRED` (T−10h, no 24h). Skip that offset again only when it was already SENT and the new visit is closer than the offset (reschedule inside 24h after they got the 24h). See [reminder.md](reminder.md). |
 | Cancel / reschedule | Only from Confirmed. Customer: own visits. Staff: home Dealership. Other customer / other shop → 404. |
-| Reschedule | New `scheduledAt` must be **in the future**, must **differ** from the current Instant (`400 SCHEDULED_AT_UNCHANGED` if same), and the visit must not already be past (`400 SCHEDULED_AT_PAST`). Cancels unsent Reminders; new rows use `MAX(schedule_version)+1`. Same late-offset rule as create. |
+| Reschedule | New `scheduledAt` must be **in the future**, must **differ** from the current Instant (`400 SCHEDULED_AT_UNCHANGED` if same), and the visit must not already be past (`400 SCHEDULED_AT_PAST`). Same **Service Slot** rules as create (Customer constrained; Staff aligned only). Cancels unsent Reminders; new rows use `MAX(schedule_version)+1`. Same late-offset rule as create. |
 | Complete | Staff, home Dealership, Confirmed only. Not the same as cancel. Frees the Vehicle; unsent Reminders cancelled. Customer → 403. Other shop → 404. |
 | Already sent | Cannot unsend. History stays. Appointment Reminder GET keeps prior Schedule Versions. |
 | Time | ISO-8601 with offset in (`scheduledAt`). Store UTC Instant **and** **Booking Offset**. No Customer timezone field. Mail / Customer GET: that offset (`10:00 PM UTC+05:30`). Staff GET: **Dealership Timezone**. JVM UTC so EC2 region does not matter. See [../trd/time.md](../trd/time.md). |

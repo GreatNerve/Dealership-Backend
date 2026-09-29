@@ -37,8 +37,20 @@ The registration plate of a **Vehicle** (example `KA01AB1234` or `KA-01-AB-1234`
 _Avoid_: VIN, chassis number
 
 **Appointment**:
-A booked service visit for one **Vehicle** at one **Dealership** at one `scheduledAt`.
-_Avoid_: Booking, reservation, slot, job (job is shop-floor, later)
+A booked service visit for one **Vehicle** at one **Dealership** at one `scheduledAt`. The Instant must land on a **Service Slot**.
+_Avoid_: Booking, reservation, job (job is shop-floor, later)
+
+**Service Slot**:
+A discrete start Instant on the Dealership grid (`APP_SLOT_DURATION`, default 30 minutes) in **Dealership Timezone**. Open inclusive, close exclusive. Holds up to the effective **Slot Capacity** Confirmed Appointments.
+_Avoid_: Booking slot (say Service Slot), bay, window (unqualified)
+
+**Slot Capacity**:
+How many Confirmed Appointments a **Service Slot** may hold. Default is the Dealership `defaultCapacity` (`APP_SLOT_DEFAULT_CAPACITY`, default 10). A **Capacity Override** may replace it for a local date range (optional time-of-day). `0` blocks Customer create.
+_Avoid_: quota, volume cap (the rejected per-Dealership daily total), seats (say Slot Capacity)
+
+**Capacity Override**:
+One generic row: inclusive local dates, optional `fromTime`/`toTime` in Dealership Timezone, and a `capacity`. Holidays are `capacity = 0`. Overrides for one Dealership must not overlap.
+_Avoid_: holiday table, exception, blackout (say Capacity Override)
 
 **Blocking Appointment**:
 An **Appointment** in status `CONFIRMED`. Default: a **Vehicle** may have at most one (`APP_ONE_CONFIRMED_PER_VEHICLE=true`). Set `false` to allow many Confirmed on the same Vehicle.
@@ -133,8 +145,12 @@ The UTC offset on `scheduledAt` when the **Appointment** is created or reschedul
 _Avoid_: Customer timezone in the payload, server timezone, asking for IANA on the Customer
 
 **Dealership Timezone**:
-IANA zone on the **Dealership**. Staff GET (including Swagger as staff) shows **Appointment** times in this zone.
+IANA zone on the **Dealership**. Staff GET (including Swagger as staff) shows **Appointment** times in this zone. **Service Slot** grid, weekly hours, and **Capacity Overrides** use this zone.
 _Avoid_: Server timezone, Booking Offset for staff screens
+
+**Max Advance Days**:
+How far ahead a **Customer** may book, as local calendar days in **Dealership Timezone** (`APP_MAX_ADVANCE_DAYS`, default 15). Last bookable Instant is the last **Service Slot** that starts before the start of the day after `today + N`. v1 is process-wide env, not a Dealership column.
+_Avoid_: rolling 15×24 hours, Customer timezone window
 
 **Local Wall Time**:
 `scheduledAt` rendered for humans. Mail and Customer GET: **Booking Offset** on the **Appointment**. Staff GET: **Dealership Timezone**. Stored value is UTC. EC2 region does not change this.
@@ -183,7 +199,7 @@ Do not use. Say **Blocking Appointment** (`CONFIRMED`) or “HTTP rate limit sti
 Same shop in v1. Use **Dealership** in APIs. Use **Venue** only in speech for “the place the customer asked to go.”
 
 **Booking**:
-Do not use in APIs. The resource is **Appointment**.
+Do not use in APIs. The resource is **Appointment**. The grid cell is **Service Slot**.
 
 **User timezone**:
 Do not use. Do not collect a Customer timezone field. Mail uses **Booking Offset** from `scheduledAt`. Staff GET uses **Dealership Timezone**. The EC2 host zone is irrelevant.
@@ -225,3 +241,15 @@ Expert: No. Generation MANUAL, Channel EMAIL, reminder_id null, dealership_id se
 Dev: Brevo said the Customer opened the mail. Do we flip Notification to OPENED?
 
 Expert: No. Worker status stays SENT. A Delivery Event OPENED is appended. List and stats derive opened from that log.
+
+Dev: Two Customers POST the last seat in the same Service Slot at once?
+
+Expert: One 201, one `409 SLOT_FULL`. Same transaction takes `pg_advisory_xact_lock` on (Dealership, slot Instant), counts Confirmed, then inserts. Redis is not in this path.
+
+Dev: Staff walk-in when the slot is full?
+
+Expert: Staff create/reschedule skips hours, capacity, and Max Advance Days. The Instant must still be a Service Slot. That Confirmed row counts for Customers; they cannot add another.
+
+Dev: Christmas is a Capacity Override of 0. Can Staff still lower Saturday hours if Saturday already has visits?
+
+Expert: No. Hours or capacity writes that would leave Confirmed visits outside the new open window, or with `booked > capacity`, are `409 SCHEDULE_CONFLICT`. Cancel or reschedule first.

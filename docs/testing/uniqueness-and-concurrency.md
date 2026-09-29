@@ -23,6 +23,7 @@ Proof is not a comment. Proof is:
 - Two `POST /appointments/{id}/notifications` with the **same** Idempotency-Key **and User** → one Manual Notification.
 - Two `POST /appointments` for the **same Vehicle**, different keys, cap on (`APP_ONE_CONFIRMED_PER_VEHICLE=true`) → one 201, one 409. One Confirmed row.
 - Cap off (`false`) → both 201. Two Confirmed rows. Index still exists; those rows have `one_confirmed=false`.
+- Two Customer `POST /appointments` for the **same Dealership + Service Slot**, `defaultCapacity = 1`, different Vehicles → one 201, one `409 SLOT_FULL`. One Confirmed at that Instant. Staff create on a full slot still 201 and increments `booked`.
 
 ## Crash windows (e2e or integration + stub)
 

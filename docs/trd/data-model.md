@@ -7,7 +7,9 @@ Demo schema may be **wiped and recreated** for this Notification shape (no dual-
 | Table | Notes |
 | --- | --- |
 | `users` | email unique **lowercase**, optional `name`, BCrypt hash, `user_role` |
-| `dealerships` | name, timezone, address |
+| `dealerships` | name, timezone, address, `default_capacity` |
+| `dealership_hours` | `dealership_id`, ISO `weekday` 1–7 unique (`int`), `closed`, `open_time`, `close_time` |
+| `dealership_capacity_overrides` | `dealership_id`, inclusive `from_date`/`to_date`, optional `from_time`/`to_time`, `capacity` |
 | `dealership_staff` | `user_id` unique, `dealership_id` |
 | `customers` | `user_id` unique, contact |
 | `vehicles` | `customer_id`, `registration_number` unique **uppercase** (**Vehicle Number**), make, model, year |
@@ -38,6 +40,8 @@ Closed sets are **PostgreSQL ENUM** types (and matching Java enums). Not `varcha
 | `outbox_status` | `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `PUBLISHED` |
 
 - `UNIQUE (vehicle_id) WHERE status = 'CONFIRMED' AND one_confirmed` on appointments (`APP_ONE_CONFIRMED_PER_VEHICLE`)
+- `UNIQUE (dealership_id, weekday)` on `dealership_hours`
+- `appointments (dealership_id, scheduled_at) WHERE status = 'CONFIRMED'` for **Service Slot** counts
 - `UNIQUE (appointment_id, offset_minutes, schedule_version)` on reminders
 - `UNIQUE (idempotency_key)` on notifications
 - `UNIQUE (user_id, key)` on `idempotency_keys`

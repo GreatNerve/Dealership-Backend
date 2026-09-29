@@ -9,6 +9,7 @@ import com.dealership.dealership.DealershipRepository;
 import com.dealership.dealership.DealershipStaffEntity;
 import com.dealership.dealership.DealershipStaffRepository;
 import com.dealership.dealership.HomeDealerships;
+import com.dealership.dealership.ServiceSlotService;
 import com.dealership.identity.Role;
 import com.dealership.identity.UserEntity;
 import com.dealership.identity.UserRepository;
@@ -66,6 +67,7 @@ public class AppointmentService {
   private final DealershipRepository dealerships;
   private final DealershipStaffRepository staff;
   private final HomeDealerships homeDealerships;
+  private final ServiceSlotService slots;
   private final ReminderService reminders;
   private final NotificationRepository notifications;
   private final IdempotencyService idempotency;
@@ -82,6 +84,7 @@ public class AppointmentService {
       DealershipRepository dealerships,
       DealershipStaffRepository staff,
       HomeDealerships homeDealerships,
+      ServiceSlotService slots,
       ReminderService reminders,
       NotificationRepository notifications,
       IdempotencyService idempotency,
@@ -96,6 +99,7 @@ public class AppointmentService {
     this.dealerships = dealerships;
     this.staff = staff;
     this.homeDealerships = homeDealerships;
+    this.slots = slots;
     this.reminders = reminders;
     this.notifications = notifications;
     this.idempotency = idempotency;
@@ -174,6 +178,7 @@ public class AppointmentService {
     if (AppointmentPolicies.scheduledAtIsPast(booking.utc(), time.now())) {
       throw ApiException.of(ApiErrorCode.SCHEDULED_AT_PAST, "scheduledAt must be in the future");
     }
+    slots.assertBookable(shop, booking.utc(), null);
     AppointmentEntity appointment = new AppointmentEntity();
     appointment.setCustomerId(customer.getId());
     appointment.setVehicleId(vehicle.getId());
@@ -238,6 +243,13 @@ public class AppointmentService {
       throw ApiException.of(
           ApiErrorCode.SCHEDULED_AT_UNCHANGED, "scheduledAt must change to reschedule");
     }
+    DealershipEntity shop =
+        row.shop() != null
+            ? row.shop()
+            : dealerships
+                .findById(appointment.getDealershipId())
+                .orElseThrow(ApiException::notFound);
+    slots.assertBookable(shop, booking.utc(), appointment.getId());
     reminders.cancelUnsent(appointment.getId());
     appointment.setScheduledAt(booking.utc());
     appointment.setDisplayOffset(booking.displayOffset().getId());
