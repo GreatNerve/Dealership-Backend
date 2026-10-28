@@ -6,11 +6,19 @@
 #   bash scripts/test-appointment.sh http://localhost:8080
 #   bash scripts/test-appointment.sh https://dealership.greatnerve.com
 #   bash scripts/test-appointment.sh http://localhost:8080 24h
+# Optional existing accounts (never commit these):
+#   DEMO_EMAIL / DEMO_PASSWORD     log in as an existing Customer
+#   STAFF_EMAIL / STAFF_PASSWORD   log in as Staff to open the shop schedule
+# Without them the script registers throwaway users with a random password.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="${LOG:-$ROOT/logs/notifications.log}"
-PASSWORD="password1"
+PASSWORD="$(openssl rand -hex 16 2>/dev/null || python3 -c 'import secrets; print(secrets.token_hex(16))')"
+DEMO_EMAIL="${DEMO_EMAIL:-}"
+DEMO_PASSWORD="${DEMO_PASSWORD:-}"
+STAFF_EMAIL="${STAFF_EMAIL:-}"
+STAFF_PASSWORD="${STAFF_PASSWORD:-}"
 BASE=""
 WHICH="both"
 
@@ -93,9 +101,10 @@ DEALERSHIP_ID=""
 
 login_demo() {
   local body shops
+  [[ -n "$DEMO_EMAIL" && -n "$DEMO_PASSWORD" ]] || return 1
   body="$(api POST /api/v1/auth/login \
     -H 'Content-Type: application/json' \
-    -d '{"email":"customer@greatnerve.com","password":"password1"}')"
+    -d "{\"email\":\"$DEMO_EMAIL\",\"password\":\"$DEMO_PASSWORD\"}")"
   TOKEN="$(json_get "$body" data.access_token)"
   shops="$(api GET '/api/v1/dealerships?size=1' -H "Authorization: Bearer $TOKEN")"
   DEALERSHIP_ID="$(json_get "$shops" data.items.0.id)"
@@ -190,16 +199,19 @@ api GET /actuator/health
 echo
 
 if login_demo 2>/dev/null; then
-  echo "logged in as customer@greatnerve.com"
+  echo "logged in as DEMO_EMAIL"
 else
-  echo "demo login skipped; registering a new Customer"
+  echo "no DEMO_EMAIL/DEMO_PASSWORD login; registering a new Customer"
   provision_fresh
 fi
 echo "dealershipId=$DEALERSHIP_ID"
-staff_login="$(api POST /api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"staff@greatnerve.com","password":"'"$PASSWORD"'"}')"
-staff_token="$(json_get "$staff_login" data.access_token || true)"
+staff_token=""
+if [[ -n "$STAFF_EMAIL" && -n "$STAFF_PASSWORD" ]]; then
+  staff_login="$(api POST /api/v1/auth/login \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$STAFF_EMAIL\",\"password\":\"$STAFF_PASSWORD\"}")"
+  staff_token="$(json_get "$staff_login" data.access_token || true)"
+fi
 if [[ -n "${staff_token:-}" && "$staff_token" != "None" ]]; then
   hours="$("$PY" -c 'import json; print(json.dumps([{"weekday":d,"closed":False,"openTime":"00:00:00","closeTime":"00:00:00"} for d in range(1,8)]))')"
   api PUT "/api/v1/dealerships/$DEALERSHIP_ID/schedule" \

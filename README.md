@@ -2,8 +2,6 @@
 
 Vehicle-service **Appointment** booking, **Reminder** delivery, and **email tracking** (Delivery Events: opened / bounce). Modular Spring Boot monolith.
 
-Production staff login is the seed user **`staff@greatnerve.com` / `password1`**.
-
 Design docs: [github.com/GreatNerve/Dealership-Backend/tree/main/docs](https://github.com/GreatNerve/Dealership-Backend/tree/main/docs). Test inventory: [test-report.md](test-report.md) · [GitHub](https://github.com/GreatNerve/Dealership-Backend/blob/main/test-report.md).
 
 Protected `/api/v1` routes need **`Authorization: Bearer <token>`** after login (Swagger **Authorize**, OAuth2 password, username = email).
@@ -61,7 +59,7 @@ docker compose up -d --build
 - Health: http://localhost:8080/actuator/health
 - Prometheus (JWT): http://localhost:8080/actuator/prometheus
 
-Demo login (`dev` profile): `staff@greatnerve.com` / `password1` and `customer@greatnerve.com` / `password1`.
+No accounts are seeded. Register a Customer or Staff user with `POST /api/v1/auth/register` (or the frontend), then log in with those credentials. The `dev` profile only seeds a demo Dealership.
 
 ## Try an Appointment (24h and 2h Reminders)
 
