@@ -36,25 +36,29 @@ export BASE=http://localhost:8080
 curl -sS "$BASE/actuator/health"
 ```
 
-## 1. Token (demo Customer)
+## 1. Token (Customer)
+
+Register once (counts against the **register** bucket, not login). Use your own email and password:
+
+```bash
+export EMAIL='you@example.com'
+export PASSWORD='choose-a-password'
+curl -sS -X POST "$BASE/api/v1/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"role\":\"CUSTOMER\"}"
+```
+
+Then log in:
 
 ```bash
 LOGIN=$(curl -sS -X POST "$BASE/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"customer@greatnerve.com","password":"password1"}')
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
 echo "$LOGIN"
 TOKEN=$(python -c "import json,sys; print(json.loads(sys.argv[1])['data']['access_token'])" "$LOGIN")
 ```
 
-If demo seed is missing, register once (counts against the **register** bucket, not login):
-
-```bash
-curl -sS -X POST "$BASE/api/v1/auth/register" \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"cust-appt@ex.com","password":"password1","role":"CUSTOMER"}'
-```
-
-Staff + shop only if `GET /dealerships` is empty. Demo shop id is `00000000-0000-4000-8000-000000000001`.
+Staff + shop only if `GET /dealerships` is empty. The `dev` profile seeds a demo shop with id `00000000-0000-4000-8000-000000000001`.
 
 ## 2. Dealership id
 

@@ -29,7 +29,7 @@ A test `Clock` (or `TimeProvider`) so no-show and due-poller tests do not wait r
 
 ## Seed
 
-Optional SQL/demo seed: 1 Dealership (`Asia/Kolkata`), 1 Staff (`staff@greatnerve.com` / `password1`), 1 Customer (`customer@greatnerve.com` / `password1`), 2 Vehicles — same as the video. E2E may create via HTTP instead; either is fine if ids are explicit. Create Appointments with `scheduledAt` including offset (e.g. `+05:30`).
+Optional SQL/demo seed: 1 Dealership (`Asia/Kolkata`). No users are seeded; E2E registers Staff and Customer via HTTP with generated emails. Either approach is fine if ids are explicit. Create Appointments with `scheduledAt` including offset (e.g. `+05:30`).
 
 ## Commands (when code exists)
 
